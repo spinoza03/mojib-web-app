@@ -1,98 +1,116 @@
 // Neora Agency API Service
-// All async functions are mocked with setTimeout for development
-// Replace the mock implementations with n8n webhook URLs when ready
+// Uses Supabase for real data persistence
 
-export interface Doctor {
-  id: string;
-  email: string;
-  clinic_name: string;
-  whatsapp_status: 'connected' | 'disconnected';
-  phone?: string;
-}
+import { supabase } from '@/integrations/supabase/client';
 
 export interface Appointment {
   id: string;
+  user_id: string;
   patient_name: string;
   phone: string;
   service_type: string;
   status: 'confirmed' | 'pending' | 'cancelled';
   date_time: string;
-  ai_summary: string;
+  ai_summary: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface BotConfig {
-  doctor_id: string;
+  id: string;
+  user_id: string;
   clinic_name: string;
   bot_tone: 'friendly' | 'formal' | 'direct';
-  services_list: string;
-  pricing_rules: string;
+  services_list: string | null;
+  pricing_rules: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
-// Mock delay to simulate API calls
-const mockDelay = (ms: number = 1000) => new Promise(resolve => setTimeout(resolve, ms));
-
-// Mock data
-const mockAppointments: Appointment[] = [
-  {
-    id: '1',
-    patient_name: 'Sarah Johnson',
-    phone: '+1 (555) 123-4567',
-    service_type: 'Teeth Cleaning',
-    status: 'confirmed',
-    date_time: '2024-01-26T10:00:00',
-    ai_summary: 'Regular cleaning appointment. Patient mentioned sensitivity on upper left molars.'
-  },
-  {
-    id: '2',
-    patient_name: 'Michael Chen',
-    phone: '+1 (555) 234-5678',
-    service_type: 'Root Canal',
-    status: 'pending',
-    date_time: '2024-01-26T14:30:00',
-    ai_summary: 'Follow-up from emergency visit. X-rays needed before procedure.'
-  },
-  {
-    id: '3',
-    patient_name: 'Emily Rodriguez',
-    phone: '+1 (555) 345-6789',
-    service_type: 'Consultation',
-    status: 'confirmed',
-    date_time: '2024-01-27T09:00:00',
-    ai_summary: 'First-time patient. Interested in Invisalign treatment options.'
-  },
-  {
-    id: '4',
-    patient_name: 'James Wilson',
-    phone: '+1 (555) 456-7890',
-    service_type: 'Filling',
-    status: 'cancelled',
-    date_time: '2024-01-27T11:00:00',
-    ai_summary: 'Cancelled due to scheduling conflict. Reschedule needed.'
-  },
-  {
-    id: '5',
-    patient_name: 'Lisa Park',
-    phone: '+1 (555) 567-8901',
-    service_type: 'Whitening',
-    status: 'pending',
-    date_time: '2024-01-28T15:00:00',
-    ai_summary: 'Cosmetic whitening session. Pre-treatment sensitivity check required.'
-  },
-];
+export interface Profile {
+  id: string;
+  user_id: string;
+  clinic_name: string;
+  phone: string | null;
+  avatar_url: string | null;
+  whatsapp_status: 'connected' | 'disconnected';
+  created_at: string;
+  updated_at: string;
+}
 
 // ==========================================
 // APPOINTMENTS API
-// Replace with: fetch('YOUR_N8N_WEBHOOK_URL/appointments')
 // ==========================================
 export async function fetchAppointments(): Promise<Appointment[]> {
-  await mockDelay(800);
-  return mockAppointments;
+  const { data, error } = await supabase
+    .from('appointments')
+    .select('*')
+    .order('date_time', { ascending: true });
+
+  if (error) {
+    console.error('[API] Error fetching appointments:', error);
+    throw error;
+  }
+
+  return (data || []) as Appointment[];
+}
+
+export async function createAppointment(appointment: Omit<Appointment, 'id' | 'created_at' | 'updated_at'>): Promise<Appointment> {
+  const { data, error } = await supabase
+    .from('appointments')
+    .insert(appointment)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('[API] Error creating appointment:', error);
+    throw error;
+  }
+
+  return data as Appointment;
+}
+
+export async function updateAppointment(id: string, updates: Partial<Appointment>): Promise<Appointment> {
+  const { data, error } = await supabase
+    .from('appointments')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('[API] Error updating appointment:', error);
+    throw error;
+  }
+
+  return data as Appointment;
 }
 
 export async function cancelAppointment(id: string): Promise<{ success: boolean }> {
-  await mockDelay(500);
-  // In production: POST to n8n webhook with appointment ID
-  console.log(`[API] Cancelling appointment: ${id}`);
+  const { error } = await supabase
+    .from('appointments')
+    .update({ status: 'cancelled' })
+    .eq('id', id);
+
+  if (error) {
+    console.error('[API] Error cancelling appointment:', error);
+    throw error;
+  }
+
+  return { success: true };
+}
+
+export async function deleteAppointment(id: string): Promise<{ success: boolean }> {
+  const { error } = await supabase
+    .from('appointments')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error('[API] Error deleting appointment:', error);
+    throw error;
+  }
+
   return { success: true };
 }
 
@@ -100,6 +118,8 @@ export async function cancelAppointment(id: string): Promise<{ success: boolean 
 // WHATSAPP QR CODE API
 // Replace with: fetch('YOUR_N8N_WEBHOOK_URL/generate-qr')
 // ==========================================
+const mockDelay = (ms: number = 1000) => new Promise(resolve => setTimeout(resolve, ms));
+
 export async function generateQRCode(): Promise<{ qr_url: string; session_id: string }> {
   await mockDelay(2000);
   // In production: Call n8n webhook to generate WhatsApp QR session
@@ -118,66 +138,93 @@ export async function checkWhatsAppStatus(): Promise<{ connected: boolean; phone
   };
 }
 
+export async function updateWhatsAppStatus(userId: string, status: 'connected' | 'disconnected', phone?: string): Promise<void> {
+  const updates: { whatsapp_status: string; phone?: string } = { whatsapp_status: status };
+  if (phone) {
+    updates.phone = phone;
+  }
+
+  const { error } = await supabase
+    .from('profiles')
+    .update(updates)
+    .eq('user_id', userId);
+
+  if (error) {
+    console.error('[API] Error updating WhatsApp status:', error);
+    throw error;
+  }
+}
+
 // ==========================================
 // BOT CONFIG API
-// Replace with: fetch('YOUR_N8N_WEBHOOK_URL/bot-config', { method: 'POST' })
 // ==========================================
 export async function saveBotConfig(config: Partial<BotConfig>): Promise<{ success: boolean }> {
-  await mockDelay(1000);
-  // In production: POST to n8n webhook with bot configuration
-  console.log('[API] Saving bot config:', config);
+  const { user_id, ...updates } = config;
+  
+  if (!user_id) {
+    throw new Error('user_id is required');
+  }
+
+  const { error } = await supabase
+    .from('bot_config')
+    .update(updates)
+    .eq('user_id', user_id);
+
+  if (error) {
+    console.error('[API] Error saving bot config:', error);
+    throw error;
+  }
+
   return { success: true };
 }
 
-export async function fetchBotConfig(doctorId: string): Promise<BotConfig> {
-  await mockDelay(600);
-  // In production: GET from n8n webhook
-  return {
-    doctor_id: doctorId,
-    clinic_name: 'Neora Dental Clinic',
-    bot_tone: 'friendly',
-    services_list: `• Teeth Cleaning - $120
-• Whitening - $350
-• Root Canal - $800-1200
-• Filling - $150-300
-• Consultation - Free`,
-    pricing_rules: 'All prices include initial consultation. Insurance accepted. Payment plans available for procedures over $500.'
-  };
+export async function fetchBotConfig(userId: string): Promise<BotConfig | null> {
+  const { data, error } = await supabase
+    .from('bot_config')
+    .select('*')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (error) {
+    console.error('[API] Error fetching bot config:', error);
+    throw error;
+  }
+
+  return data as BotConfig | null;
 }
 
 // ==========================================
-// AUTH API (Prepare for Supabase)
+// PROFILE API
 // ==========================================
-export async function loginUser(email: string, password: string): Promise<{ user: Doctor | null; error?: string }> {
-  await mockDelay(1000);
-  // In production: Use Supabase Auth
-  if (email && password) {
-    return {
-      user: {
-        id: 'user_1',
-        email,
-        clinic_name: 'Neora Dental Clinic',
-        whatsapp_status: 'disconnected'
-      }
-    };
+export async function fetchProfile(userId: string): Promise<Profile | null> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (error) {
+    console.error('[API] Error fetching profile:', error);
+    throw error;
   }
-  return { user: null, error: 'Invalid credentials' };
+
+  return data as Profile | null;
 }
 
-export async function registerUser(email: string, password: string): Promise<{ user: Doctor | null; error?: string }> {
-  await mockDelay(1000);
-  // In production: Use Supabase Auth
-  if (email && password) {
-    return {
-      user: {
-        id: 'user_' + Date.now(),
-        email,
-        clinic_name: 'New Clinic',
-        whatsapp_status: 'disconnected'
-      }
-    };
+export async function updateProfile(userId: string, updates: Partial<Profile>): Promise<Profile> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .update(updates)
+    .eq('user_id', userId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('[API] Error updating profile:', error);
+    throw error;
   }
-  return { user: null, error: 'Registration failed' };
+
+  return data as Profile;
 }
 
 // ==========================================
@@ -192,12 +239,39 @@ export interface DashboardStats {
 }
 
 export async function fetchDashboardStats(): Promise<DashboardStats> {
-  await mockDelay(700);
+  const { data: appointments, error } = await supabase
+    .from('appointments')
+    .select('*');
+
+  if (error) {
+    console.error('[API] Error fetching dashboard stats:', error);
+    throw error;
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const allAppointments = appointments || [];
+  const confirmedToday = allAppointments.filter(a => {
+    const appointmentDate = new Date(a.date_time);
+    return a.status === 'confirmed' && 
+           appointmentDate >= today && 
+           appointmentDate < tomorrow;
+  }).length;
+
+  const pendingReview = allAppointments.filter(a => a.status === 'pending').length;
+  const confirmed = allAppointments.filter(a => a.status === 'confirmed').length;
+  const conversionRate = allAppointments.length > 0 
+    ? Math.round((confirmed / allAppointments.length) * 100) 
+    : 0;
+
   return {
-    totalAppointments: 156,
-    confirmedToday: 8,
-    pendingReview: 3,
-    conversionRate: 78,
-    aiInteractions: 432
+    totalAppointments: allAppointments.length,
+    confirmedToday,
+    pendingReview,
+    conversionRate,
+    aiInteractions: allAppointments.length * 3, // Simulated AI interactions
   };
 }

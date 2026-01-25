@@ -14,7 +14,111 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      appointments: {
+        Row: {
+          ai_summary: string | null
+          created_at: string
+          date_time: string
+          id: string
+          patient_name: string
+          phone: string
+          service_type: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ai_summary?: string | null
+          created_at?: string
+          date_time: string
+          id?: string
+          patient_name: string
+          phone: string
+          service_type: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ai_summary?: string | null
+          created_at?: string
+          date_time?: string
+          id?: string
+          patient_name?: string
+          phone?: string
+          service_type?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      bot_config: {
+        Row: {
+          bot_tone: string
+          clinic_name: string
+          created_at: string
+          id: string
+          pricing_rules: string | null
+          services_list: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          bot_tone?: string
+          clinic_name?: string
+          created_at?: string
+          id?: string
+          pricing_rules?: string | null
+          services_list?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          bot_tone?: string
+          clinic_name?: string
+          created_at?: string
+          id?: string
+          pricing_rules?: string | null
+          services_list?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          clinic_name: string
+          created_at: string
+          id: string
+          phone: string | null
+          updated_at: string
+          user_id: string
+          whatsapp_status: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          clinic_name?: string
+          created_at?: string
+          id?: string
+          phone?: string | null
+          updated_at?: string
+          user_id: string
+          whatsapp_status?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          clinic_name?: string
+          created_at?: string
+          id?: string
+          phone?: string | null
+          updated_at?: string
+          user_id?: string
+          whatsapp_status?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

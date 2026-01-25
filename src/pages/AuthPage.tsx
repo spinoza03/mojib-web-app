@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -6,30 +6,67 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { loginUser, registerUser } from '@/services/api';
+import { useAuth } from '@/hooks/useAuth';
 import { Loader2, Sparkles } from 'lucide-react';
+import { z } from 'zod';
+
+const authSchema = z.object({
+  email: z.string().trim().email({ message: 'Please enter a valid email address' }),
+  password: z.string().min(6, { message: 'Password must be at least 6 characters' }),
+});
 
 export default function AuthPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user, loading, signIn, signUp } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (!loading && user) {
+      navigate('/dashboard');
+    }
+  }, [user, loading, navigate]);
+
+  const validateForm = () => {
+    const result = authSchema.safeParse({ email, password });
+    if (!result.success) {
+      const fieldErrors: { email?: string; password?: string } = {};
+      result.error.errors.forEach((err) => {
+        if (err.path[0] === 'email') fieldErrors.email = err.message;
+        if (err.path[0] === 'password') fieldErrors.password = err.message;
+      });
+      setErrors(fieldErrors);
+      return false;
+    }
+    setErrors({});
+    return true;
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!validateForm()) return;
+    
     setIsLoading(true);
 
     try {
-      const { user, error } = await loginUser(email, password);
-      if (error || !user) {
+      const { error } = await signIn(email, password);
+      if (error) {
+        let message = 'Invalid credentials';
+        if (error.message.includes('Invalid login credentials')) {
+          message = 'Invalid email or password. Please try again.';
+        } else if (error.message.includes('Email not confirmed')) {
+          message = 'Please confirm your email address before logging in.';
+        }
         toast({
           title: 'Login Failed',
-          description: error || 'Invalid credentials',
+          description: message,
           variant: 'destructive',
         });
       } else {
-        localStorage.setItem('neora_user', JSON.stringify(user));
         toast({
           title: 'Welcome back!',
           description: 'Successfully logged in to Neora Dashboard',
@@ -43,18 +80,25 @@ export default function AuthPage() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!validateForm()) return;
+    
     setIsLoading(true);
 
     try {
-      const { user, error } = await registerUser(email, password);
-      if (error || !user) {
+      const { error } = await signUp(email, password);
+      if (error) {
+        let message = 'Could not create account';
+        if (error.message.includes('User already registered')) {
+          message = 'An account with this email already exists. Please login instead.';
+        } else if (error.message.includes('Password')) {
+          message = error.message;
+        }
         toast({
           title: 'Registration Failed',
-          description: error || 'Could not create account',
+          description: message,
           variant: 'destructive',
         });
       } else {
-        localStorage.setItem('neora_user', JSON.stringify(user));
         toast({
           title: 'Account Created!',
           description: 'Welcome to Neora Dashboard',
@@ -65,6 +109,14 @@ export default function AuthPage() {
       setIsLoading(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -111,6 +163,9 @@ export default function AuthPage() {
                     required
                     className="bg-secondary border-input"
                   />
+                  {errors.email && (
+                    <p className="text-sm text-destructive">{errors.email}</p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="login-password">Password</Label>
@@ -123,6 +178,9 @@ export default function AuthPage() {
                     required
                     className="bg-secondary border-input"
                   />
+                  {errors.password && (
+                    <p className="text-sm text-destructive">{errors.password}</p>
+                  )}
                 </div>
                 <Button
                   type="submit"
@@ -150,6 +208,9 @@ export default function AuthPage() {
                     required
                     className="bg-secondary border-input"
                   />
+                  {errors.email && (
+                    <p className="text-sm text-destructive">{errors.email}</p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="register-password">Password</Label>
@@ -162,6 +223,9 @@ export default function AuthPage() {
                     required
                     className="bg-secondary border-input"
                   />
+                  {errors.password && (
+                    <p className="text-sm text-destructive">{errors.password}</p>
+                  )}
                 </div>
                 <Button
                   type="submit"
