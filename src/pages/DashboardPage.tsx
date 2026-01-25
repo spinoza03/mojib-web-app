@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { fetchDashboardStats, fetchAppointments } from '@/services/api';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { useAuth } from '@/hooks/useAuth';
 import {
   Calendar,
   CheckCircle2,
@@ -67,6 +68,8 @@ const item = {
 };
 
 export default function DashboardPage() {
+  const { profile } = useAuth();
+
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ['dashboardStats'],
     queryFn: fetchDashboardStats,
@@ -81,13 +84,15 @@ export default function DashboardPage() {
     (a) => a.status !== 'cancelled'
   ).slice(0, 3);
 
+  const clinicName = profile?.clinic_name || 'Doctor';
+
   return (
     <AppLayout>
       <div className="space-y-8">
         {/* Header */}
         <div>
           <h1 className="text-3xl font-bold mb-2">
-            Welcome back, <span className="text-gradient">Dr. Neora</span>
+            Welcome back, <span className="text-gradient">{clinicName}</span>
           </h1>
           <p className="text-muted-foreground">
             Here's what's happening with your AI receptionist today.
@@ -154,9 +159,9 @@ export default function DashboardPage() {
                     />
                   ))}
                 </div>
-              ) : (
+              ) : upcomingAppointments && upcomingAppointments.length > 0 ? (
                 <div className="space-y-3">
-                  {upcomingAppointments?.map((appointment) => (
+                  {upcomingAppointments.map((appointment) => (
                     <div
                       key={appointment.id}
                       className="flex items-center justify-between p-4 bg-secondary/30 rounded-lg hover:bg-secondary/50 transition-colors"
@@ -192,6 +197,12 @@ export default function DashboardPage() {
                       </div>
                     </div>
                   ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Calendar className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p>No upcoming appointments</p>
+                  <p className="text-sm">New appointments will appear here</p>
                 </div>
               )}
             </CardContent>

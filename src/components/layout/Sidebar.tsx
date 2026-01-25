@@ -2,6 +2,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { Home, Calendar, Smartphone, Settings, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
+import { useAuth } from '@/hooks/useAuth';
 
 const navItems = [
   { icon: Home, label: 'Dashboard', path: '/dashboard' },
@@ -12,6 +13,16 @@ const navItems = [
 
 export function Sidebar() {
   const location = useLocation();
+  const { profile, signOut } = useAuth();
+
+  const handleLogout = async () => {
+    await signOut();
+    window.location.href = '/auth';
+  };
+
+  const userInitials = profile?.clinic_name
+    ? profile.clinic_name.substring(0, 2).toUpperCase()
+    : 'DR';
 
   return (
     <motion.aside
@@ -66,17 +77,14 @@ export function Sidebar() {
         <div className="p-4 border-t border-[hsl(var(--glass-border))]">
           <div className="flex items-center gap-3 px-3 py-2">
             <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary/50 to-primary flex items-center justify-center">
-              <span className="text-sm font-semibold text-primary-foreground">DR</span>
+              <span className="text-sm font-semibold text-primary-foreground">{userInitials}</span>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">Dr. Neora</p>
+              <p className="text-sm font-medium truncate">{profile?.clinic_name || 'My Clinic'}</p>
               <p className="text-xs text-muted-foreground truncate">Admin</p>
             </div>
             <button
-              onClick={() => {
-                localStorage.removeItem('neora_user');
-                window.location.href = '/auth';
-              }}
+              onClick={handleLogout}
               className="p-2 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
             >
               <LogOut className="h-4 w-4" />

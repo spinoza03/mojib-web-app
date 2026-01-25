@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,35 +14,41 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { saveBotConfig, fetchBotConfig, BotConfig } from '@/services/api';
 import { Settings, Bot, Save, Loader2, Sparkles } from 'lucide-react';
 
 export default function SettingsPage() {
   const { toast } = useToast();
+  const { user, refreshProfile } = useAuth();
+  const queryClient = useQueryClient();
   const [clinicName, setClinicName] = useState('');
-  const [botTone, setBotTone] = useState<BotConfig['bot_tone']>('friendly');
+  const [botTone, setBotTone] = useState<'friendly' | 'formal' | 'direct'>('friendly');
   const [servicesList, setServicesList] = useState('');
 
   const { data: config, isLoading: configLoading } = useQuery({
-    queryKey: ['botConfig'],
-    queryFn: () => fetchBotConfig('user_1'),
+    queryKey: ['botConfig', user?.id],
+    queryFn: () => fetchBotConfig(user!.id),
+    enabled: !!user,
   });
 
   useEffect(() => {
     if (config) {
       setClinicName(config.clinic_name);
       setBotTone(config.bot_tone);
-      setServicesList(config.services_list);
+      setServicesList(config.services_list || '');
     }
   }, [config]);
 
   const saveMutation = useMutation({
     mutationFn: (data: Partial<BotConfig>) => saveBotConfig(data),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['botConfig'] });
+      refreshProfile();
       toast({
         title: 'Configuration Saved',
-        description: 'Your settings have been sent to n8n.',
+        description: 'Your settings have been saved successfully.',
       });
     },
     onError: () => {
@@ -55,7 +61,9 @@ export default function SettingsPage() {
   });
 
   const handleSave = () => {
+    if (!user) return;
     saveMutation.mutate({
+      user_id: user.id,
       clinic_name: clinicName,
       bot_tone: botTone,
       services_list: servicesList,
@@ -124,7 +132,7 @@ export default function SettingsPage() {
                   {/* Bot Tone */}
                   <div className="space-y-2">
                     <Label htmlFor="bot-tone">Bot Tone</Label>
-                    <Select value={botTone} onValueChange={(v) => setBotTone(v as BotConfig['bot_tone'])}>
+                    <Select value={botTone} onValueChange={(v) => setBotTone(v as 'friendly' | 'formal' | 'direct')}>
                       <SelectTrigger className="bg-secondary border-input">
                         <SelectValue placeholder="Select tone" />
                       </SelectTrigger>
