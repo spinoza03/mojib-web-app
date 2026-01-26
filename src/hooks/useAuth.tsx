@@ -9,6 +9,7 @@ interface Profile {
   phone: string | null;
   avatar_url: string | null;
   whatsapp_status: 'connected' | 'disconnected';
+  role?: 'clinic' | 'superuser';
 }
 
 interface AuthContextType {

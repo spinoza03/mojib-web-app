@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { Home, Calendar, Smartphone, Settings, LogOut } from 'lucide-react';
+import { Home, Calendar, Smartphone, Settings, LogOut, Shield } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/hooks/useAuth';
@@ -71,6 +71,32 @@ export function Sidebar() {
               </NavLink>
             );
           })}
+          {profile?.role === 'superuser' && (
+            <NavLink
+              to="/admin"
+              className={cn(
+                'flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 group',
+                location.pathname === '/admin'
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+              )}
+            >
+              <Shield
+                className={cn(
+                  'h-5 w-5 transition-transform duration-200',
+                  location.pathname === '/admin' && 'scale-110'
+                )}
+              />
+              <span className="font-medium">Admin Panel</span>
+              {location.pathname === '/admin' && (
+                <motion.div
+                  layoutId="activeIndicator"
+                  className="absolute left-0 w-1 h-8 bg-primary rounded-r-full"
+                  transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                />
+              )}
+            </NavLink>
+          )}
         </nav>
 
         {/* User Profile */}

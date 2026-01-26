@@ -34,6 +34,7 @@ export interface Profile {
   phone: string | null;
   avatar_url: string | null;
   whatsapp_status: 'connected' | 'disconnected';
+  role?: 'clinic' | 'superuser';
   created_at: string;
   updated_at: string;
 }
@@ -273,5 +274,83 @@ export async function fetchDashboardStats(): Promise<DashboardStats> {
     pendingReview,
     conversionRate,
     aiInteractions: allAppointments.length * 3, // Simulated AI interactions
+  };
+}
+
+// ==========================================
+// ADMIN API
+// ==========================================
+export interface ClinicWithEmail extends Profile {
+  email?: string;
+}
+
+export interface AdminStats {
+  totalClinics: number;
+  activeBots: number;
+  totalAppointments: number;
+}
+
+export async function fetchAllClinics(): Promise<ClinicWithEmail[]> {
+  // Fetch all profiles
+  const { data: profiles, error: profilesError } = await supabase
+    .from('profiles')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (profilesError) {
+    console.error('[API] Error fetching all clinics:', profilesError);
+    throw profilesError;
+  }
+
+  // Fetch user emails by getting auth users
+  // Note: This requires RLS policies that allow superusers to read all profiles
+  // For email, we'll need to either:
+  // 1. Store email in profiles table
+  // 2. Use a database function/view that joins with auth.users
+  // 3. Use service role client (not available in frontend)
+  // For now, we'll fetch emails separately using a database function or view
+  // If that's not available, we can add email to profiles table
+  
+  const clinicsWithEmail: ClinicWithEmail[] = [];
+  
+  // Try to get emails from auth.users via a database function or RPC
+  // For now, we'll return profiles without email and can enhance later
+  // You may need to create a database function like:
+  // CREATE OR REPLACE FUNCTION get_clinics_with_emails()
+  // RETURNS TABLE (profile_data jsonb, email text) AS $$
+  // ...
+  
+  return (profiles || []) as ClinicWithEmail[];
+}
+
+export async function fetchAdminStats(): Promise<AdminStats> {
+  // Fetch all profiles
+  const { data: profiles, error: profilesError } = await supabase
+    .from('profiles')
+    .select('*');
+
+  if (profilesError) {
+    console.error('[API] Error fetching profiles for admin stats:', profilesError);
+    throw profilesError;
+  }
+
+  // Fetch all appointments
+  const { data: appointments, error: appointmentsError } = await supabase
+    .from('appointments')
+    .select('*');
+
+  if (appointmentsError) {
+    console.error('[API] Error fetching appointments for admin stats:', appointmentsError);
+    throw appointmentsError;
+  }
+
+  const totalClinics = (profiles || []).length;
+  const activeBots = (profiles || []).filter(p => p.whatsapp_status === 'connected').length;
+  const totalAppointments = (appointments || []).length;
+
+  return {
+    totalClinics,
+    activeBots,
+    totalAppointments,
   };
 }
