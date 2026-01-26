@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client'; // <--- Added this import
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -19,6 +20,9 @@ export default function AuthPage() {
   const [password, setPassword] = useState('');
   const [clinicName, setClinicName] = useState('');
   const [phone, setPhone] = useState('');
+  
+  // NEW: State for Password Reset Mode
+  const [resetMode, setResetMode] = useState(false);
 
   if (user && !loading) {
     return <Navigate to="/dashboard" replace />;
@@ -35,6 +39,28 @@ export default function AuthPage() {
     }
   };
 
+  // NEW: Function to send the reset email
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Please enter your email address first.' });
+      return;
+    }
+    
+    setIsLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/update-password`,
+    });
+    setIsLoading(false);
+    
+    if (error) {
+      toast({ variant: 'destructive', title: 'Error', description: error.message });
+    } else {
+      toast({ title: 'Check your email', description: 'Password reset link sent!' });
+      setResetMode(false); // Go back to login mode
+    }
+  };
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!clinicName || !phone) {
@@ -43,7 +69,6 @@ export default function AuthPage() {
     }
 
     setIsLoading(true);
-    // Pass the Metadata to Supabase so the Trigger can grab it
     const { error } = await signUp(email, password, {
       clinic_name: clinicName,
       phone: phone
@@ -59,7 +84,6 @@ export default function AuthPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Background Elements */}
       <div className="absolute inset-0 bg-background pattern-grid opacity-20" />
       <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/20 rounded-full blur-3xl animate-pulse" />
       
@@ -84,7 +108,7 @@ export default function AuthPage() {
 
             {/* LOGIN FORM */}
             <TabsContent value="login">
-              <form onSubmit={handleLogin} className="space-y-4">
+              <form className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
                   <div className="relative">
@@ -100,23 +124,47 @@ export default function AuthPage() {
                     />
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input 
-                      id="password" 
-                      type="password" 
-                      className="pl-9 bg-secondary/30"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                    />
+
+                {/* Only show Password field if NOT in reset mode */}
+                {!resetMode && (
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Password</Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Input 
+                        id="password" 
+                        type="password" 
+                        className="pl-9 bg-secondary/30"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                      />
+                    </div>
                   </div>
+                )}
+
+                {/* --- THIS IS THE PART YOU ASKED FOR --- */}
+                <div className="flex justify-end">
+                  <button 
+                    type="button"
+                    onClick={() => setResetMode(!resetMode)}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    {resetMode ? 'Back to Login' : 'Forgot Password?'}
+                  </button>
                 </div>
-                <Button className="w-full bg-primary hover:bg-primary/90" disabled={isLoading}>
-                  {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Sign In'}
-                </Button>
+
+                {resetMode ? (
+                  <Button onClick={handleResetPassword} className="w-full" disabled={isLoading}>
+                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Send Reset Link'}
+                  </Button>
+                ) : (
+                  <Button onClick={handleLogin} className="w-full bg-primary hover:bg-primary/90" disabled={isLoading}>
+                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Sign In'}
+                  </Button>
+                )}
+                {/* -------------------------------------- */}
+
               </form>
             </TabsContent>
 

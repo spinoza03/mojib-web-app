@@ -3,6 +3,7 @@ import { Home, Calendar, Smartphone, Settings, LogOut, Shield } from 'lucide-rea
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/hooks/useAuth';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'; // Import Shadcn Avatar
 
 const navItems = [
   { icon: Home, label: 'Dashboard', path: '/dashboard' },
@@ -13,7 +14,7 @@ const navItems = [
 
 export function Sidebar() {
   const location = useLocation();
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, user } = useAuth();
 
   const handleLogout = async () => {
     await signOut();
@@ -24,6 +25,9 @@ export function Sidebar() {
     ? profile.clinic_name.substring(0, 2).toUpperCase()
     : 'DR';
 
+  // Check superuser role
+  const isAdmin = profile?.role === 'superuser';
+
   return (
     <motion.aside
       initial={{ x: -80, opacity: 0 }}
@@ -32,7 +36,7 @@ export function Sidebar() {
       className="fixed left-0 top-0 z-40 h-screen w-64 glass border-r border-[hsl(var(--glass-border))]"
     >
       <div className="flex h-full flex-col">
-        {/* Logo */}
+        {/* Logo Section */}
         <div className="flex h-20 items-center px-6 border-b border-[hsl(var(--glass-border))]">
           <span className="text-2xl font-bold tracking-tight">
             <span className="text-primary">NEORA</span>
@@ -71,7 +75,9 @@ export function Sidebar() {
               </NavLink>
             );
           })}
-          {profile?.role === 'superuser' && (
+
+          {/* Admin Link - Only for Superusers */}
+          {isAdmin && (
             <NavLink
               to="/admin"
               className={cn(
@@ -88,26 +94,27 @@ export function Sidebar() {
                 )}
               />
               <span className="font-medium">Admin Panel</span>
-              {location.pathname === '/admin' && (
-                <motion.div
-                  layoutId="activeIndicator"
-                  className="absolute left-0 w-1 h-8 bg-primary rounded-r-full"
-                  transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                />
-              )}
             </NavLink>
           )}
         </nav>
 
-        {/* User Profile */}
+        {/* User Profile Footer */}
         <div className="p-4 border-t border-[hsl(var(--glass-border))]">
           <div className="flex items-center gap-3 px-3 py-2">
-            <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary/50 to-primary flex items-center justify-center">
-              <span className="text-sm font-semibold text-primary-foreground">{userInitials}</span>
-            </div>
+            
+            {/* UPDATED: Now uses Avatar Component */}
+            <Avatar className="h-10 w-10 border border-primary/20">
+              <AvatarImage src={profile?.avatar_url || ''} className="object-cover" />
+              <AvatarFallback className="bg-gradient-to-br from-primary/50 to-primary text-primary-foreground font-semibold">
+                {userInitials}
+              </AvatarFallback>
+            </Avatar>
+
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{profile?.clinic_name || 'My Clinic'}</p>
-              <p className="text-xs text-muted-foreground truncate">Admin</p>
+              <p className="text-xs text-muted-foreground truncate">
+                {isAdmin ? 'Superuser' : 'Clinic Account'}
+              </p>
             </div>
             <button
               onClick={handleLogout}
