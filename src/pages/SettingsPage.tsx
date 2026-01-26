@@ -1,203 +1,135 @@
 import { useState, useEffect } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { motion } from 'framer-motion';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/hooks/useAuth';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { saveBotConfig, fetchBotConfig, BotConfig } from '@/services/api';
-import { Settings, Bot, Save, Loader2, Sparkles } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { Bot, Save, Sparkles, MessageSquare } from 'lucide-react';
 
 export default function SettingsPage() {
+  const { user } = useAuth();
   const { toast } = useToast();
-  const { user, refreshProfile } = useAuth();
-  const queryClient = useQueryClient();
+  const [loading, setLoading] = useState(false);
+  
+  // State for the fields we need for n8n
+  const [prompt, setPrompt] = useState('');
   const [clinicName, setClinicName] = useState('');
-  const [botTone, setBotTone] = useState<'friendly' | 'formal' | 'direct'>('friendly');
-  const [servicesList, setServicesList] = useState('');
 
-  const { data: config, isLoading: configLoading } = useQuery({
-    queryKey: ['botConfig', user?.id],
-    queryFn: () => fetchBotConfig(user!.id),
-    enabled: !!user,
-  });
-
+  // 1. Fetch current settings
   useEffect(() => {
-    if (config) {
-      setClinicName(config.clinic_name);
-      setBotTone(config.bot_tone);
-      setServicesList(config.services_list || '');
+    async function loadSettings() {
+      if (!user) return;
+      const { data } = await supabase
+        .from('profiles')
+        .select('system_prompt, clinic_name')
+        .eq('id', user.id)
+        .single();
+      
+      if (data) {
+        setPrompt(data.system_prompt || '');
+        setClinicName(data.clinic_name || '');
+      }
     }
-  }, [config]);
+    loadSettings();
+  }, [user]);
 
-  const saveMutation = useMutation({
-    mutationFn: (data: Partial<BotConfig>) => saveBotConfig(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['botConfig'] });
-      refreshProfile();
-      toast({
-        title: 'Configuration Saved',
-        description: 'Your settings have been saved successfully.',
-      });
-    },
-    onError: () => {
-      toast({
-        title: 'Error',
-        description: 'Failed to save configuration.',
-        variant: 'destructive',
-      });
-    },
-  });
+  // 2. Save settings (This updates the DB, ready for n8n to read)
+  const handleSave = async () => {
+    setLoading(true);
+    const { error } = await supabase
+      .from('profiles')
+      .update({ 
+        system_prompt: prompt,
+        clinic_name: clinicName 
+      })
+      .eq('id', user?.id);
+    
+    setLoading(false);
 
-  const handleSave = () => {
-    if (!user) return;
-    saveMutation.mutate({
-      user_id: user.id,
-      clinic_name: clinicName,
-      bot_tone: botTone,
-      services_list: servicesList,
-    });
-  };
-
-  const toneDescriptions = {
-    friendly: 'Warm and approachable, uses casual language and emojis',
-    formal: 'Professional and courteous, maintains clinical tone',
-    direct: 'Concise and efficient, gets straight to the point',
+    if (error) {
+      toast({ variant: 'destructive', title: 'Error', description: error.message });
+    } else {
+      toast({ title: 'Configuration Saved', description: 'Your AI personality has been updated.' });
+    }
   };
 
   return (
     <AppLayout>
-      <div className="space-y-6 max-w-3xl">
-        {/* Header */}
+      <div className="space-y-6 max-w-4xl mx-auto">
         <div>
-          <h1 className="text-3xl font-bold mb-2 flex items-center gap-3">
-            <Settings className="h-8 w-8 text-primary" />
-            Bot Configuration
-          </h1>
-          <p className="text-muted-foreground">
-            Customize how your AI receptionist interacts with patients.
-          </p>
+          <h1 className="text-3xl font-bold mb-2">Bot Configuration</h1>
+          <p className="text-muted-foreground">Customize how your AI receptionist interacts with patients.</p>
         </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-        >
-          <Card className="glass-card border-0">
+        <div className="grid gap-6 md:grid-cols-2">
+          {/* Left Column: Basic Settings */}
+          <div className="space-y-6">
+            <Card className="glass-card">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-primary" />
+                  Identity
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Clinic Name (Used in Greetings)</Label>
+                  <Input 
+                    value={clinicName} 
+                    onChange={(e) => setClinicName(e.target.value)} 
+                    placeholder="e.g. Smile Dental"
+                    className="bg-secondary/50"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Test / Preview (Visual Only for now) */}
+            <Card className="glass-card border-primary/20 bg-primary/5">
+              <CardHeader>
+                <CardTitle className="text-sm font-medium text-primary">Status</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-2 text-green-500 font-medium">
+                  <span className="relative flex h-3 w-3">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                  </span>
+                  Ready to reply
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Right Column: The System Prompt */}
+          <Card className="glass-card md:row-span-2">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Bot className="h-5 w-5 text-primary" />
-                AI Receptionist Brain
+                System Prompt
               </CardTitle>
               <CardDescription>
-                Configure your bot's personality and knowledge base
+                This is the "Brain" of your bot. Give it specific instructions.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              {configLoading ? (
-                <div className="space-y-4">
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className="h-20 bg-secondary/30 rounded-lg animate-pulse" />
-                  ))}
-                </div>
-              ) : (
-                <>
-                  {/* Clinic Name */}
-                  <div className="space-y-2">
-                    <Label htmlFor="clinic-name">Clinic Name</Label>
-                    <Input
-                      id="clinic-name"
-                      value={clinicName}
-                      onChange={(e) => setClinicName(e.target.value)}
-                      placeholder="Enter your clinic name"
-                      className="bg-secondary border-input"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      This name will be used in greetings and confirmations
-                    </p>
-                  </div>
-
-                  {/* Bot Tone */}
-                  <div className="space-y-2">
-                    <Label htmlFor="bot-tone">Bot Tone</Label>
-                    <Select value={botTone} onValueChange={(v) => setBotTone(v as 'friendly' | 'formal' | 'direct')}>
-                      <SelectTrigger className="bg-secondary border-input">
-                        <SelectValue placeholder="Select tone" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-popover border-[hsl(var(--glass-border))]">
-                        <SelectItem value="friendly">
-                          <div className="flex items-center gap-2">
-                            <Sparkles className="h-4 w-4 text-yellow-500" />
-                            Friendly
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="formal">
-                          <div className="flex items-center gap-2">
-                            <span className="text-blue-400">📋</span>
-                            Formal
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="direct">
-                          <div className="flex items-center gap-2">
-                            <span className="text-green-400">⚡</span>
-                            Direct
-                          </div>
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      {toneDescriptions[botTone]}
-                    </p>
-                  </div>
-
-                  {/* Services List */}
-                  <div className="space-y-2">
-                    <Label htmlFor="services">Service List & Prices</Label>
-                    <Textarea
-                      id="services"
-                      value={servicesList}
-                      onChange={(e) => setServicesList(e.target.value)}
-                      placeholder="List your services and prices..."
-                      className="bg-secondary border-input min-h-[200px] font-mono text-sm"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      The AI will reference this list when patients ask about services or pricing
-                    </p>
-                  </div>
-
-                  {/* Save Button */}
-                  <div className="pt-4 border-t border-[hsl(var(--glass-border))]">
-                    <Button
-                      onClick={handleSave}
-                      disabled={saveMutation.isPending}
-                      className="w-full glow-primary gap-2"
-                      size="lg"
-                    >
-                      {saveMutation.isPending ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Save className="h-4 w-4" />
-                      )}
-                      Save Configuration
-                    </Button>
-                  </div>
-                </>
-              )}
+            <CardContent className="space-y-4">
+              <Textarea 
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                className="min-h-[400px] font-mono text-sm bg-secondary/50 leading-relaxed"
+                placeholder="You are a helpful receptionist for Dr. Smile. Your goal is to book appointments..."
+              />
+              <Button onClick={handleSave} disabled={loading} className="w-full">
+                <Save className="mr-2 h-4 w-4" />
+                {loading ? 'Saving...' : 'Update AI Personality'}
+              </Button>
             </CardContent>
           </Card>
-        </motion.div>
+        </div>
       </div>
     </AppLayout>
   );

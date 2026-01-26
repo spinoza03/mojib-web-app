@@ -1,234 +1,263 @@
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { motion } from 'framer-motion';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { useToast } from '@/hooks/use-toast';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Calendar, dateFnsLocalizer, View, Views } from 'react-big-calendar';
+import format from 'date-fns/format';
+import parse from 'date-fns/parse';
+import startOfWeek from 'date-fns/startOfWeek';
+import getDay from 'date-fns/getDay';
+import enUS from 'date-fns/locale/en-US';
+import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { fetchAppointments, cancelAppointment, Appointment } from '@/services/api';
-import { RefreshCw, Calendar, X, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Plus, Loader2, Phone, User, FileText } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth'; // Added useAuth to get your ID
+import 'react-big-calendar/lib/css/react-big-calendar.css';
+import '@/App.css';
+
+// 1. Setup Localizer
+const locales = { 'en-US': enUS };
+const localizer = dateFnsLocalizer({
+  format,
+  parse,
+  startOfWeek,
+  getDay,
+  locales,
+});
+
+interface AppointmentEvent {
+  id: string;
+  title: string;
+  start: Date;
+  end: Date;
+  resource: {
+    phone: string;
+    notes?: string;
+    status: string;
+  };
+}
 
 export default function AppointmentsPage() {
   const { toast } = useToast();
+  const { user } = useAuth(); // Get current user
   const queryClient = useQueryClient();
-  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
-  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
-
-  const { data: appointments, isLoading, refetch, isFetching } = useQuery({
-    queryKey: ['appointments'],
-    queryFn: fetchAppointments,
+  
+  // State for View Dialog
+  const [selectedEvent, setSelectedEvent] = useState<AppointmentEvent | null>(null);
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  
+  // State for Create Dialog
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [newAppointment, setNewAppointment] = useState({
+    patientName: '',
+    phone: '',
+    date: '',
+    time: '',
+    notes: ''
   });
 
-  const cancelMutation = useMutation({
-    mutationFn: (id: string) => cancelAppointment(id),
-    onSuccess: () => {
-      toast({
-        title: 'Appointment Cancelled',
-        description: 'The appointment has been cancelled successfully.',
-      });
-      queryClient.invalidateQueries({ queryKey: ['appointments'] });
-      setCancelDialogOpen(false);
-      setSelectedAppointment(null);
+  const [view, setView] = useState<View>(Views.MONTH);
+
+  // 2. Fetch Appointments
+  const { data: events, isLoading } = useQuery({
+    queryKey: ['appointments'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('appointments').select('*');
+      if (error) {
+        toast({ variant: 'destructive', title: 'Error', description: error.message });
+        throw error;
+      }
+      return data.map((apt) => ({
+        id: apt.id,
+        title: apt.patient_name || 'Unknown',
+        start: new Date(apt.start_time),
+        end: new Date(apt.end_time),
+        resource: {
+          phone: apt.patient_phone,
+          notes: apt.notes,
+          status: apt.status,
+        },
+      })) as AppointmentEvent[];
     },
   });
 
-  const handleCancelClick = (appointment: Appointment) => {
-    setSelectedAppointment(appointment);
-    setCancelDialogOpen(true);
+  // 3. Handle Create Submit
+  const handleCreateAppointment = async () => {
+    if (!user) return;
+    if (!newAppointment.patientName || !newAppointment.date || !newAppointment.time) {
+      toast({ variant: 'destructive', title: 'Missing Fields', description: 'Please fill in Name, Date, and Time.' });
+      return;
+    }
+
+    // Combine Date and Time into ISO string
+    const startDateTime = new Date(`${newAppointment.date}T${newAppointment.time}`);
+    const endDateTime = new Date(startDateTime.getTime() + 30 * 60000); // Add 30 minutes automatically
+
+    const { error } = await supabase.from('appointments').insert({
+      doctor_id: user.id, // Assign to YOU
+      patient_name: newAppointment.patientName,
+      patient_phone: newAppointment.phone,
+      start_time: startDateTime.toISOString(),
+      end_time: endDateTime.toISOString(),
+      status: 'confirmed',
+      notes: newAppointment.notes
+    });
+
+    if (error) {
+      toast({ variant: 'destructive', title: 'Error', description: error.message });
+    } else {
+      toast({ title: 'Success', description: 'Appointment booked successfully.' });
+      setIsCreateDialogOpen(false);
+      setNewAppointment({ patientName: '', phone: '', date: '', time: '', notes: '' }); // Reset form
+      queryClient.invalidateQueries({ queryKey: ['appointments'] }); // Refresh calendar
+    }
   };
 
-  const getStatusBadge = (status: Appointment['status']) => {
-    switch (status) {
-      case 'confirmed':
-        return (
-          <Badge className="bg-success/20 text-success border-success/30 hover:bg-success/30">
-            Confirmed
-          </Badge>
-        );
-      case 'pending':
-        return (
-          <Badge className="bg-warning/20 text-warning border-warning/30 hover:bg-warning/30">
-            Pending
-          </Badge>
-        );
-      case 'cancelled':
-        return (
-          <Badge variant="outline" className="text-destructive border-destructive/30">
-            Cancelled
-          </Badge>
-        );
-    }
+  const handleSelectEvent = (event: AppointmentEvent) => {
+    setSelectedEvent(event);
+    setIsViewDialogOpen(true);
   };
 
   return (
     <AppLayout>
-      <div className="space-y-6">
-        {/* Header */}
+      <div className="space-y-6 h-[calc(100vh-100px)] flex flex-col">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold mb-2 flex items-center gap-3">
-              <Calendar className="h-8 w-8 text-primary" />
-              Patient Appointments
-            </h1>
-            <p className="text-muted-foreground">
-              Manage and review all patient bookings from your AI receptionist.
-            </p>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">Appointments</h1>
+            <p className="text-muted-foreground">Manage your clinic's schedule.</p>
           </div>
-          <Button
-            onClick={() => refetch()}
-            disabled={isFetching}
-            variant="outline"
-            className="gap-2"
+          {/* THE FIXED BUTTON */}
+          <Button 
+            className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
+            onClick={() => setIsCreateDialogOpen(true)}
           >
-            <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
-            Refresh Data
+            <Plus className="h-4 w-4" />
+            Manual Booking
           </Button>
         </div>
 
-        {/* Appointments Table */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-        >
-          <Card className="glass-card border-0 overflow-hidden">
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow className="border-b border-[hsl(var(--glass-border))] hover:bg-transparent">
-                    <TableHead className="text-muted-foreground">Patient</TableHead>
-                    <TableHead className="text-muted-foreground">Service</TableHead>
-                    <TableHead className="text-muted-foreground">Date</TableHead>
-                    <TableHead className="text-muted-foreground">AI Summary</TableHead>
-                    <TableHead className="text-muted-foreground">Status</TableHead>
-                    <TableHead className="text-muted-foreground text-right">Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {isLoading ? (
-                    [...Array(5)].map((_, i) => (
-                      <TableRow key={i}>
-                        <TableCell colSpan={6}>
-                          <div className="h-12 bg-secondary/30 rounded animate-pulse" />
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  ) : (
-                    appointments?.map((appointment) => (
-                      <TableRow
-                        key={appointment.id}
-                        className="border-b border-[hsl(var(--glass-border))] group hover:bg-secondary/20"
-                      >
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            <div className="h-9 w-9 rounded-full bg-primary/20 flex items-center justify-center">
-                              <span className="text-sm font-medium text-primary">
-                                {appointment.patient_name.charAt(0)}
-                              </span>
-                            </div>
-                            <div>
-                              <p className="font-medium">{appointment.patient_name}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {appointment.phone}
-                              </p>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {appointment.service_type}
-                        </TableCell>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium">
-                              {new Date(appointment.date_time).toLocaleDateString()}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {new Date(appointment.date_time).toLocaleTimeString([], {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })}
-                            </p>
-                          </div>
-                        </TableCell>
-                        <TableCell className="max-w-xs">
-                          <p className="text-sm text-muted-foreground line-clamp-2">
-                            {appointment.ai_summary}
-                          </p>
-                        </TableCell>
-                        <TableCell>{getStatusBadge(appointment.status)}</TableCell>
-                        <TableCell className="text-right">
-                          {appointment.status !== 'cancelled' && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleCancelClick(appointment)}
-                              className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
-                            >
-                              <X className="h-4 w-4 mr-1" />
-                              Cancel
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </motion.div>
-      </div>
+        <Card className="flex-1 glass border-[hsl(var(--glass-border))] overflow-hidden flex flex-col">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg font-medium">Calendar View</CardTitle>
+          </CardHeader>
+          <CardContent className="flex-1 p-4 min-h-[500px]">
+            {isLoading ? (
+              <div className="h-full flex items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : (
+              <Calendar
+                localizer={localizer}
+                events={events || []}
+                startAccessor="start"
+                endAccessor="end"
+                style={{ height: '100%' }}
+                views={['month', 'week', 'day', 'agenda']}
+                view={view}
+                onView={setView}
+                onSelectEvent={handleSelectEvent}
+                eventPropGetter={(event) => ({
+                  style: {
+                    backgroundColor: event.resource.status === 'confirmed' ? '#ef4444' : '#22c55e',
+                    color: 'white',
+                    borderRadius: '4px',
+                    border: 'none',
+                  },
+                })}
+              />
+            )}
+          </CardContent>
+        </Card>
 
-      {/* Cancel Confirmation Dialog */}
-      <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
-        <DialogContent className="glass-card border-[hsl(var(--glass-border))]">
-          <DialogHeader>
-            <DialogTitle>Cancel Appointment</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to cancel the appointment for{' '}
-              <span className="font-medium text-foreground">
-                {selectedAppointment?.patient_name}
-              </span>
-              ? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setCancelDialogOpen(false)}
-            >
-              Keep Appointment
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => selectedAppointment && cancelMutation.mutate(selectedAppointment.id)}
-              disabled={cancelMutation.isPending}
-            >
-              {cancelMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              ) : null}
-              Yes, Cancel
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        {/* 1. VIEW Dialog (Existing) */}
+        <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+          <DialogContent className="glass-card">
+            <DialogHeader><DialogTitle>{selectedEvent?.title}</DialogTitle></DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="flex items-center gap-3">
+                <User className="h-5 w-5 text-muted-foreground" />
+                <span>{selectedEvent?.title}</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <Phone className="h-5 w-5 text-muted-foreground" />
+                <span>{selectedEvent?.resource.phone || 'No phone'}</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <FileText className="h-5 w-5 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">{selectedEvent?.resource.notes || 'No notes.'}</p>
+              </div>
+            </div>
+            <DialogFooter><Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>Close</Button></DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* 2. CREATE Dialog (New) */}
+        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+          <DialogContent className="glass-card sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>New Appointment</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="name">Patient Name</Label>
+                <Input 
+                  id="name" 
+                  value={newAppointment.patientName} 
+                  onChange={(e) => setNewAppointment({...newAppointment, patientName: e.target.value})}
+                  placeholder="e.g. Sara Ahmed" 
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="phone">Phone Number</Label>
+                <Input 
+                  id="phone" 
+                  value={newAppointment.phone} 
+                  onChange={(e) => setNewAppointment({...newAppointment, phone: e.target.value})}
+                  placeholder="+212..." 
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="date">Date</Label>
+                  <Input 
+                    id="date" 
+                    type="date"
+                    value={newAppointment.date} 
+                    onChange={(e) => setNewAppointment({...newAppointment, date: e.target.value})} 
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="time">Time</Label>
+                  <Input 
+                    id="time" 
+                    type="time"
+                    value={newAppointment.time} 
+                    onChange={(e) => setNewAppointment({...newAppointment, time: e.target.value})} 
+                  />
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="notes">Notes</Label>
+                <Input 
+                  id="notes" 
+                  value={newAppointment.notes} 
+                  onChange={(e) => setNewAppointment({...newAppointment, notes: e.target.value})}
+                  placeholder="Reason for visit..." 
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>Cancel</Button>
+              <Button onClick={handleCreateAppointment}>Book Appointment</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+      </div>
     </AppLayout>
   );
 }

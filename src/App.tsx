@@ -15,7 +15,26 @@ import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
 
-// Protected Route Component for Admin
+// 1. General Protected Route (Forces Login)
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/auth" replace />;
+  }
+
+  return <>{children}</>;
+}
+
+// 2. Admin Protected Route (Forces Superuser)
 function ProtectedAdminRoute({ children }: { children: React.ReactNode }) {
   const { user, profile, loading } = useAuth();
 
@@ -28,7 +47,8 @@ function ProtectedAdminRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (!user || profile?.role !== 'superuser') {
-    return <Navigate to="/dashboard" replace />;
+    // If logged in but not admin, go to dashboard. If not logged in, go to auth.
+    return user ? <Navigate to="/dashboard" replace /> : <Navigate to="/auth" replace />;
   }
 
   return <>{children}</>;
@@ -42,12 +62,47 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<Navigate to="/auth" replace />} />
+            {/* Public Route */}
             <Route path="/auth" element={<AuthPage />} />
-            <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/appointments" element={<AppointmentsPage />} />
-            <Route path="/connect" element={<ConnectPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
+            
+            {/* Redirect root to auth or dashboard */}
+            <Route path="/" element={<Navigate to="/auth" replace />} />
+
+            {/* Private Routes (Require Login) */}
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute>
+                  <DashboardPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/appointments"
+              element={
+                <ProtectedRoute>
+                  <AppointmentsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/connect"
+              element={
+                <ProtectedRoute>
+                  <ConnectPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                <ProtectedRoute>
+                  <SettingsPage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Admin Route (Requires Superuser) */}
             <Route
               path="/admin"
               element={
@@ -56,6 +111,8 @@ const App = () => (
                 </ProtectedAdminRoute>
               }
             />
+
+            {/* 404 */}
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

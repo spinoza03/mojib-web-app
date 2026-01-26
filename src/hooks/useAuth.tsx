@@ -2,14 +2,15 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
+// 1. Define the Profile shape (matches your DB columns)
 interface Profile {
   id: string;
-  user_id: string;
-  clinic_name: string;
+  clinic_name: string | null;
   phone: string | null;
   avatar_url: string | null;
   whatsapp_status: 'connected' | 'disconnected';
-  role?: 'clinic' | 'superuser';
+  role: 'clinic' | 'superuser'; // This is what unlocks the admin panel
+  credits: number;
 }
 
 interface AuthContextType {
@@ -32,29 +33,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = async (userId: string) => {
+    // 2. THE FIX: Changed .eq('user_id', userId) to .eq('id', userId)
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
-      .eq('user_id', userId)
+      .eq('id', userId) 
       .maybeSingle();
     
-    if (!error && data) {
+    if (error) {
+      console.error('Error fetching profile:', error);
+    }
+
+    if (data) {
+      console.log('Profile loaded:', data); // This helps debug in Console
       setProfile(data as Profile);
     }
   };
 
   useEffect(() => {
-    // Set up auth state listener FIRST
+    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         
-        // Defer profile fetch to avoid deadlock
         if (session?.user) {
-          setTimeout(() => {
-            fetchProfile(session.user.id);
-          }, 0);
+          // Fetch profile immediately when user logs in
+          fetchProfile(session.user.id);
         } else {
           setProfile(null);
         }
@@ -63,15 +68,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    // THEN check for existing session
+    // Initial check
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
-      
       if (session?.user) {
         fetchProfile(session.user.id);
       }
-      
       setLoading(false);
     });
 
@@ -79,24 +82,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
     return { error };
   };
 
-  const signUp = async (email: string, password: string) => {
-    const redirectUrl = `${window.location.origin}/`;
-    
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: redirectUrl,
-      },
-    });
-    return { error };
+// Find this part in useAuth.tsx and update it if it looks different
+const signUp = async (email: string, password: string, metaData?: { clinic_name: string, phone: string }) => {
+	const redirectUrl = `${window.location.origin}/`;
+	
+	const { error } = await supabase.auth.signUp({
+	  email,
+	  password,
+	  options: {
+		emailRedirectTo: redirectUrl,
+		// Pass the extra data here
+		data: metaData 
+	  },
+	});
+	return { error };
   };
 
   const signOut = async () => {
@@ -104,8 +107,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setSession(null);
     setProfile(null);
-    // Clear any legacy localStorage
-    localStorage.removeItem('neora_user');
   };
 
   const refreshProfile = async () => {
@@ -115,18 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        session,
-        profile,
-        loading,
-        signIn,
-        signUp,
-        signOut,
-        refreshProfile,
-      }}
-    >
+    <AuthContext.Provider value={{ user, session, profile, loading, signIn, signUp, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

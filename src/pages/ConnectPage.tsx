@@ -1,229 +1,159 @@
-import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { generateQRCode } from '@/services/api';
-import {
-  Smartphone,
-  QrCode,
-  Loader2,
-  CheckCircle2,
-  MessageCircle,
-  ScanLine,
-  Link2,
-} from 'lucide-react';
-
-type ConnectionState = 'idle' | 'loading' | 'qr' | 'success';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Loader2, Smartphone, QrCode, RefreshCw, CheckCircle2, AlertCircle } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { Badge } from '@/components/ui/badge';
 
 export default function ConnectPage() {
-  const [state, setState] = useState<ConnectionState>('idle');
-  const [qrUrl, setQrUrl] = useState<string>('');
-  const [connectedPhone, setConnectedPhone] = useState<string>('');
+  const { user } = useAuth();
+  const { toast } = useToast();
+  
+  // UI States for future API integration
+  const [status, setStatus] = useState<'disconnected' | 'scanning' | 'connected'>('disconnected');
+  const [qrCode, setQrCode] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleGenerateQR = async () => {
-    setState('loading');
-    try {
-      const result = await generateQRCode();
-      setQrUrl(result.qr_url);
-      setState('qr');
-
-      // Simulate successful connection after 5 seconds (for demo)
-      setTimeout(() => {
-        setConnectedPhone('+1 (555) 000-0000');
-        setState('success');
-      }, 8000);
-    } catch (error) {
-      setState('idle');
+  // 1. Fetch real status from DB on load
+  useEffect(() => {
+    async function checkStatus() {
+      if (!user) return;
+      const { data } = await supabase
+        .from('profiles')
+        .select('whatsapp_status')
+        .eq('id', user.id)
+        .single();
+      
+      if (data?.whatsapp_status) {
+        // Cast to our known types
+        setStatus(data.whatsapp_status as any);
+      }
     }
+    checkStatus();
+  }, [user]);
+
+  // 2. Mock Function: This simulates asking WAHA for a QR code
+  const handleStartSession = async () => {
+    setIsLoading(true);
+    
+    // TODO: Later, replace this with: axios.get('https://your-waha-url/api/start')
+    
+    // SIMULATION (Remove this later when API is ready)
+    setTimeout(async () => {
+      setStatus('scanning');
+      // Update DB to match
+      await supabase.from('profiles').update({ whatsapp_status: 'scanning' }).eq('id', user?.id);
+      setIsLoading(false);
+      toast({ title: 'Session Started', description: 'Please scan the QR code.' });
+    }, 1500);
   };
 
-  const steps = [
-    { icon: Smartphone, text: 'Open WhatsApp on your phone' },
-    { icon: ScanLine, text: 'Go to Menu → Linked Devices' },
-    { icon: QrCode, text: 'Tap "Link a Device" and scan the code' },
-  ];
+  // 3. Mock Function: Simulates disconnecting
+  const handleLogout = async () => {
+    setIsLoading(true);
+    // TODO: Later, replace with: axios.post('https://your-waha-url/api/logout')
+    
+    await supabase.from('profiles').update({ whatsapp_status: 'disconnected' }).eq('id', user?.id);
+    setStatus('disconnected');
+    setQrCode(null);
+    setIsLoading(false);
+  };
 
   return (
     <AppLayout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold mb-2 flex items-center gap-3">
-            <Smartphone className="h-8 w-8 text-primary" />
-            Connect WhatsApp
-          </h1>
-          <p className="text-muted-foreground">
-            Link your WhatsApp Business account to enable AI-powered patient communication.
-          </p>
+      <div className="max-w-3xl mx-auto space-y-8">
+        <div className="text-center space-y-2">
+          <h1 className="text-3xl font-bold">Connect WhatsApp</h1>
+          <p className="text-muted-foreground">Link your existing WhatsApp number to enable the AI.</p>
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-6">
-          {/* Instructions */}
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.4 }}
-          >
-            <Card className="glass-card border-0 h-full">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MessageCircle className="h-5 w-5 text-primary" />
-                  How to Connect
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {steps.map((step, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.1 + 0.2 }}
-                    className="flex items-start gap-4"
-                  >
-                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                      <span className="text-primary font-bold">{index + 1}</span>
-                    </div>
-                    <div className="flex-1 pt-2">
-                      <div className="flex items-center gap-2">
-                        <step.icon className="h-4 w-4 text-muted-foreground" />
-                        <p className="text-foreground">{step.text}</p>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-
-                <div className="pt-4 border-t border-[hsl(var(--glass-border))]">
-                  <p className="text-sm text-muted-foreground">
-                    <strong className="text-foreground">Note:</strong> Your WhatsApp session will be securely managed through our n8n automation workflow.
-                  </p>
+        <Card className="glass-card overflow-hidden border-primary/20">
+          <CardContent className="p-0">
+            <div className="grid md:grid-cols-2 min-h-[400px]">
+              
+              {/* Left Side: Instructions */}
+              <div className="p-8 space-y-6 flex flex-col justify-center bg-secondary/20">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">1</div>
+                    <p>Open WhatsApp on your phone</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">2</div>
+                    <p>Go to Settings {'>'} Linked Devices</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">3</div>
+                    <p>Tap "Link a Device" and scan</p>
+                  </div>
                 </div>
-              </CardContent>
-            </Card>
-          </motion.div>
 
-          {/* QR Code Stage */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.4, delay: 0.1 }}
-          >
-            <Card className="glass-card border-0 h-full">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Link2 className="h-5 w-5 text-primary" />
-                  Connection Status
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-col items-center justify-center min-h-[400px]">
-                <AnimatePresence mode="wait">
-                  {state === 'idle' && (
-                    <motion.div
-                      key="idle"
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.9 }}
-                      className="text-center"
-                    >
-                      <div className="w-24 h-24 rounded-full bg-secondary/50 flex items-center justify-center mx-auto mb-6">
-                        <QrCode className="h-12 w-12 text-muted-foreground" />
-                      </div>
-                      <p className="text-muted-foreground mb-6">
-                        Ready to connect your WhatsApp account
-                      </p>
-                      <Button
-                        onClick={handleGenerateQR}
-                        size="lg"
-                        className="glow-primary gap-2"
-                      >
-                        <QrCode className="h-5 w-5" />
-                        Generate QR Code
-                      </Button>
-                    </motion.div>
-                  )}
+                <div className="pt-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-sm font-medium">Current Status:</span>
+                    {status === 'connected' && <Badge className="bg-green-500 hover:bg-green-600">Connected</Badge>}
+                    {status === 'scanning' && <Badge variant="secondary" className="animate-pulse">Waiting for Scan...</Badge>}
+                    {status === 'disconnected' && <Badge variant="destructive">Disconnected</Badge>}
+                  </div>
+                </div>
+              </div>
 
-                  {state === 'loading' && (
-                    <motion.div
-                      key="loading"
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.9 }}
-                      className="text-center"
-                    >
-                      <div className="w-24 h-24 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-6">
-                        <Loader2 className="h-12 w-12 text-primary animate-spin" />
-                      </div>
-                      <p className="text-foreground font-medium mb-2">
-                        Fetching secure session from n8n...
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        This may take a few seconds
-                      </p>
-                    </motion.div>
-                  )}
+              {/* Right Side: The QR Display Area */}
+              <div className="p-8 flex flex-col items-center justify-center border-l border-white/5 bg-black/20">
+                
+                {/* STATE 1: CONNECTED */}
+                {status === 'connected' && (
+                  <div className="text-center space-y-4">
+                    <div className="h-24 w-24 bg-green-500/20 rounded-full flex items-center justify-center mx-auto">
+                      <CheckCircle2 className="h-12 w-12 text-green-500" />
+                    </div>
+                    <h3 className="text-xl font-bold text-white">System Online</h3>
+                    <p className="text-sm text-muted-foreground">Your AI is active and replying to messages.</p>
+                    <Button variant="destructive" onClick={handleLogout} disabled={isLoading}>
+                      {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Disconnect
+                    </Button>
+                  </div>
+                )}
 
-                  {state === 'qr' && (
-                    <motion.div
-                      key="qr"
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.9 }}
-                      className="text-center"
-                    >
-                      <div className="p-4 bg-white rounded-2xl mb-6 inline-block">
-                        <img
-                          src={qrUrl}
-                          alt="WhatsApp QR Code"
-                          className="w-64 h-64 object-contain"
-                        />
-                      </div>
-                      <p className="text-foreground font-medium mb-2">
-                        Scan this QR code with WhatsApp
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        Waiting for connection...
-                      </p>
-                      <div className="flex items-center justify-center gap-2 mt-4">
-                        <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                        <span className="text-sm text-muted-foreground">
-                          Listening for scan...
-                        </span>
-                      </div>
-                    </motion.div>
-                  )}
+                {/* STATE 2: SCANNING (Show QR) */}
+                {status === 'scanning' && (
+                  <div className="text-center space-y-4 w-full">
+                    {qrCode ? (
+                       <img src={qrCode} alt="QR Code" className="w-48 h-48 mx-auto rounded-lg" />
+                    ) : (
+                       // Placeholder for the QR until API sends it
+                       <div className="w-48 h-48 mx-auto bg-white rounded-lg flex items-center justify-center">
+                         <QrCode className="h-16 w-16 text-black opacity-20" />
+                         <p className="absolute text-xs text-black font-medium">QR API Not Linked</p>
+                       </div>
+                    )}
+                    <p className="text-sm text-muted-foreground animate-pulse">Waiting for connection...</p>
+                    <Button variant="outline" size="sm" onClick={() => setStatus('disconnected')}>Cancel</Button>
+                  </div>
+                )}
 
-                  {state === 'success' && (
-                    <motion.div
-                      key="success"
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.9 }}
-                      className="text-center"
-                    >
-                      <motion.div
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-                        className="w-24 h-24 rounded-full bg-success/20 flex items-center justify-center mx-auto mb-6"
-                      >
-                        <CheckCircle2 className="h-14 w-14 text-success" />
-                      </motion.div>
-                      <p className="text-foreground font-medium text-xl mb-2">
-                        WhatsApp Connected!
-                      </p>
-                      <p className="text-success font-mono text-lg">
-                        {connectedPhone}
-                      </p>
-                      <p className="text-sm text-muted-foreground mt-4">
-                        Your AI receptionist is now active
-                      </p>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </div>
+                {/* STATE 3: DISCONNECTED */}
+                {status === 'disconnected' && (
+                  <div className="text-center space-y-4">
+                    <div className="h-24 w-24 bg-secondary rounded-full flex items-center justify-center mx-auto">
+                      <Smartphone className="h-10 w-10 text-muted-foreground" />
+                    </div>
+                    <p className="text-sm text-muted-foreground">Session is inactive</p>
+                    <Button onClick={handleStartSession} disabled={isLoading} className="bg-[#25D366] hover:bg-[#25D366]/90 text-black font-bold">
+                      {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <QrCode className="mr-2 h-4 w-4" />}
+                      Generate QR Code
+                    </Button>
+                  </div>
+                )}
+
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </AppLayout>
   );

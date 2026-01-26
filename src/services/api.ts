@@ -35,6 +35,7 @@ export interface Profile {
   avatar_url: string | null;
   whatsapp_status: 'connected' | 'disconnected';
   role?: 'clinic' | 'superuser';
+  credits?: number;
   created_at: string;
   updated_at: string;
 }
@@ -285,9 +286,9 @@ export interface ClinicWithEmail extends Profile {
 }
 
 export interface AdminStats {
-  totalClinics: number;
-  activeBots: number;
-  totalAppointments: number;
+  totalUsers: number;
+  totalRevenue: number;
+  activeAppointments: number;
 }
 
 export async function fetchAllClinics(): Promise<ClinicWithEmail[]> {
@@ -344,13 +345,68 @@ export async function fetchAdminStats(): Promise<AdminStats> {
     throw appointmentsError;
   }
 
-  const totalClinics = (profiles || []).length;
-  const activeBots = (profiles || []).filter(p => p.whatsapp_status === 'connected').length;
-  const totalAppointments = (appointments || []).length;
+  const totalUsers = (profiles || []).length;
+  // Calculate total revenue from credits (assuming 1 credit = $1, or adjust as needed)
+  // For now, we'll sum all credits as revenue
+  const totalRevenue = (profiles || []).reduce((sum, p) => sum + (p.credits || 0), 0);
+  const activeAppointments = (appointments || []).filter(a => a.status !== 'cancelled').length;
 
   return {
-    totalClinics,
-    activeBots,
-    totalAppointments,
+    totalUsers,
+    totalRevenue,
+    activeAppointments,
   };
+}
+
+// ==========================================
+// ADMIN USER MANAGEMENT API
+// ==========================================
+export async function addCreditsToUser(userId: string, creditsToAdd: number): Promise<Profile> {
+  // First, get current credits
+  const { data: profile, error: fetchError } = await supabase
+    .from('profiles')
+    .select('credits')
+    .eq('user_id', userId)
+    .single();
+
+  if (fetchError) {
+    console.error('[API] Error fetching user profile:', fetchError);
+    throw fetchError;
+  }
+
+  const currentCredits = profile?.credits || 0;
+  const newCredits = currentCredits + creditsToAdd;
+
+  // Update credits
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ credits: newCredits })
+    .eq('user_id', userId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('[API] Error adding credits:', error);
+    throw error;
+  }
+
+  return data as Profile;
+}
+
+export async function deleteUser(userId: string): Promise<{ success: boolean }> {
+  // Delete the profile (auth user will be deleted via CASCADE)
+  const { error } = await supabase
+    .from('profiles')
+    .delete()
+    .eq('user_id', userId);
+
+  if (error) {
+    console.error('[API] Error deleting user:', error);
+    throw error;
+  }
+
+  // Note: The auth user will be deleted via CASCADE if the foreign key is set up correctly
+  // If not, you may need to delete from auth.users using a database function
+
+  return { success: true };
 }
