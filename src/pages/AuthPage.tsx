@@ -78,14 +78,14 @@ export default function AuthPage() {
     if (error) {
       toast({ variant: 'destructive', title: 'Sign Up Failed', description: error.message });
     } else {
-      toast({ title: 'Welcome to Neora!', description: 'Account created. You can now log in.' });
+      toast({ title: 'Welcome to Mojib.AI!', description: 'Account created. You can now log in.' });
     }
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
       <div className="absolute inset-0 bg-background pattern-grid opacity-20" />
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/20 rounded-full blur-3xl animate-pulse" />
+      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-3xl" />
       
       <Card className="w-full max-w-md glass-card relative z-10 border-primary/20">
         <CardHeader className="text-center space-y-2">
@@ -93,10 +93,10 @@ export default function AuthPage() {
             <Building2 className="w-6 h-6 text-primary" />
           </div>
           <CardTitle className="text-3xl font-bold tracking-tight">
-            Neora<span className="text-primary">Connect</span>
+            MOJIB<span className="text-primary">.AI</span>
           </CardTitle>
           <CardDescription>
-            The AI Operating System for Modern Clinics
+            The Intelligent AI Responder for Modern Business.
           </CardDescription>
         </CardHeader>
         <CardContent>

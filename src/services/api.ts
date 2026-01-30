@@ -1,4 +1,4 @@
-// Neora Agency API Service
+// Mojib.AI API Service
 // Uses Supabase for real data persistence
 
 import { supabase } from '@/integrations/supabase/client';

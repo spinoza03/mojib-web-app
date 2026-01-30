@@ -38,8 +38,9 @@ export function Sidebar() {
       <div className="flex h-full flex-col">
         {/* Logo Section */}
         <div className="flex h-20 items-center px-6 border-b border-[hsl(var(--glass-border))]">
-          <span className="text-2xl font-bold tracking-tight">
-            <span className="text-primary">NEORA</span>
+          <span className="text-2xl font-extrabold tracking-tight font-sans">
+            <span className="text-[#333C45]">MOJIB</span>
+            <span className="text-[#2589D0]">.AI</span>
           </span>
         </div>
 

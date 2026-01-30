@@ -2,15 +2,19 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
-// 1. Define the Profile shape (matches your DB columns)
+// 1. Define the Profile shape (matches your DB columns / generated types)
 interface Profile {
   id: string;
-  clinic_name: string | null;
+  user_id: string;
+  clinic_name: string;
   phone: string | null;
   avatar_url: string | null;
-  whatsapp_status: 'connected' | 'disconnected';
-  role: 'clinic' | 'superuser'; // This is what unlocks the admin panel
-  credits: number;
+  whatsapp_status: string;
+  created_at?: string;
+  updated_at?: string;
+  // Optional fields (some projects add these columns later)
+  role?: 'clinic' | 'superuser'; // This is what unlocks the admin panel
+  credits?: number;
 }
 
 interface AuthContextType {
@@ -19,7 +23,11 @@ interface AuthContextType {
   profile: Profile | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signUp: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signUp: (
+    email: string,
+    password: string,
+    metaData?: { clinic_name: string; phone: string }
+  ) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
