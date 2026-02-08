@@ -3,6 +3,10 @@ import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
 // 1. Define the Profile shape (matches your DB columns / generated types)
+type PlanType = 'starter' | 'pro';
+type SubscriptionStatus = 'trial' | 'active' | 'expired';
+export type FeatureName = 'dashboard' | 'chat' | 'calendar-sync' | 'advanced-settings';
+
 interface Profile {
   id: string;
   user_id: string;
@@ -14,7 +18,9 @@ interface Profile {
   updated_at?: string;
   // Optional fields (some projects add these columns later)
   role?: 'clinic' | 'superuser'; // This is what unlocks the admin panel
-  credits?: number;
+  plan_type: PlanType;
+  subscription_status: SubscriptionStatus;
+  trial_ends_at: string;
 }
 
 interface AuthContextType {
@@ -30,6 +36,7 @@ interface AuthContextType {
   ) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  canAccessFeature: (featureName: FeatureName) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -123,8 +130,24 @@ const signUp = async (email: string, password: string, metaData?: { clinic_name:
     }
   };
 
+  const canAccessFeature = (featureName: FeatureName) => {
+    if (!profile) return false;
+
+    if (profile.subscription_status === 'expired') {
+      return false;
+    }
+
+    if (profile.plan_type === 'starter') {
+      if (featureName === 'calendar-sync' || featureName === 'advanced-settings') {
+        return false;
+      }
+    }
+
+    return true;
+  };
+
   return (
-    <AuthContext.Provider value={{ user, session, profile, loading, signIn, signUp, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{ user, session, profile, loading, signIn, signUp, signOut, refreshProfile, canAccessFeature }}>
       {children}
     </AuthContext.Provider>
   );

@@ -35,7 +35,9 @@ export interface Profile {
   avatar_url: string | null;
   whatsapp_status: 'connected' | 'disconnected';
   role?: 'clinic' | 'superuser';
-  credits?: number;
+  plan_type: 'starter' | 'pro';
+  subscription_status: 'trial' | 'active' | 'expired';
+  trial_ends_at: string;
   created_at: string;
   updated_at: string;
 }
@@ -346,9 +348,17 @@ export async function fetchAdminStats(): Promise<AdminStats> {
   }
 
   const totalUsers = (profiles || []).length;
-  // Calculate total revenue from credits (assuming 1 credit = $1, or adjust as needed)
-  // For now, we'll sum all credits as revenue
-  const totalRevenue = (profiles || []).reduce((sum, p) => sum + (p.credits || 0), 0);
+  const planPrices: Record<Profile['plan_type'], number> = {
+    starter: 300,
+    pro: 500,
+  };
+
+  const totalRevenue = (profiles || []).reduce((sum, profile) => {
+    if (profile.subscription_status === 'active') {
+      return sum + planPrices[profile.plan_type];
+    }
+    return sum;
+  }, 0);
   const activeAppointments = (appointments || []).filter(a => a.status !== 'cancelled').length;
 
   return {
@@ -361,38 +371,6 @@ export async function fetchAdminStats(): Promise<AdminStats> {
 // ==========================================
 // ADMIN USER MANAGEMENT API
 // ==========================================
-export async function addCreditsToUser(userId: string, creditsToAdd: number): Promise<Profile> {
-  // First, get current credits
-  const { data: profile, error: fetchError } = await supabase
-    .from('profiles')
-    .select('credits')
-    .eq('user_id', userId)
-    .single();
-
-  if (fetchError) {
-    console.error('[API] Error fetching user profile:', fetchError);
-    throw fetchError;
-  }
-
-  const currentCredits = profile?.credits || 0;
-  const newCredits = currentCredits + creditsToAdd;
-
-  // Update credits
-  const { data, error } = await supabase
-    .from('profiles')
-    .update({ credits: newCredits })
-    .eq('user_id', userId)
-    .select()
-    .single();
-
-  if (error) {
-    console.error('[API] Error adding credits:', error);
-    throw error;
-  }
-
-  return data as Profile;
-}
-
 export async function deleteUser(userId: string): Promise<{ success: boolean }> {
   // Delete the profile (auth user will be deleted via CASCADE)
   const { error } = await supabase

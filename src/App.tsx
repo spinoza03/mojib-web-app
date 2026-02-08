@@ -3,7 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider, useAuth } from "@/hooks/useAuth";
+import { AuthProvider, useAuth, type FeatureName } from "@/hooks/useAuth";
 import AuthPage from "./pages/AuthPage";
 import DashboardPage from "./pages/DashboardPage";
 import AppointmentsPage from "./pages/AppointmentsPage";
@@ -15,9 +15,15 @@ import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
 
-// 1. General Protected Route (Forces Login)
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+// 1. Feature Protected Route (Forces Subscription)
+function ProtectedFeatureRoute({
+  children,
+  featureName,
+}: {
+  children: React.ReactNode;
+  featureName: FeatureName;
+}) {
+  const { user, loading, canAccessFeature } = useAuth();
 
   if (loading) {
     return (
@@ -29,6 +35,19 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (!user) {
     return <Navigate to="/auth" replace />;
+  }
+
+  if (!canAccessFeature(featureName)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center space-y-2 px-6">
+          <p className="text-lg font-semibold">Subscription Required</p>
+          <p className="text-sm text-muted-foreground">
+            Please contact support to upgrade your plan and unlock this feature.
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return <>{children}</>;
@@ -72,33 +91,33 @@ const App = () => (
             <Route
               path="/dashboard"
               element={
-                <ProtectedRoute>
+                <ProtectedFeatureRoute featureName="dashboard">
                   <DashboardPage />
-                </ProtectedRoute>
+                </ProtectedFeatureRoute>
               }
             />
             <Route
               path="/appointments"
               element={
-                <ProtectedRoute>
+                <ProtectedFeatureRoute featureName="calendar-sync">
                   <AppointmentsPage />
-                </ProtectedRoute>
+                </ProtectedFeatureRoute>
               }
             />
             <Route
               path="/connect"
               element={
-                <ProtectedRoute>
+                <ProtectedFeatureRoute featureName="chat">
                   <ConnectPage />
-                </ProtectedRoute>
+                </ProtectedFeatureRoute>
               }
             />
             <Route
               path="/settings"
               element={
-                <ProtectedRoute>
+                <ProtectedFeatureRoute featureName="advanced-settings">
                   <SettingsPage />
-                </ProtectedRoute>
+                </ProtectedFeatureRoute>
               }
             />
 

@@ -12,7 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Bot, Save, Building2, Upload, Loader2 } from 'lucide-react';
 
 export default function SettingsPage() {
-  const { user, refreshProfile } = useAuth();
+  const { user, refreshProfile, profile } = useAuth();
   const { toast } = useToast();
   
   const [loading, setLoading] = useState(false);
@@ -22,6 +22,28 @@ export default function SettingsPage() {
   const [clinicName, setClinicName] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
 
+  const planType = profile?.plan_type || 'starter';
+  const subscriptionStatus = profile?.subscription_status || 'trial';
+  const trialEndsAt = profile?.trial_ends_at;
+
+  const getTrialDaysLeft = (trialEndsAtValue?: string) => {
+    if (!trialEndsAtValue) return 0;
+    const endDate = new Date(trialEndsAtValue);
+    const today = new Date();
+    const diff = endDate.getTime() - today.getTime();
+    return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+  };
+
+  const whatsappNumber = '212600000000';
+  const getWhatsAppLink = (targetPlan: 'starter' | 'pro') => {
+    const message =
+      targetPlan === 'pro'
+        ? 'Hello, I want to upgrade to the PRO Plan.'
+        : 'Hello, I want to change to the STARTER Plan.';
+    return `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`;
+  };
+
+
   // 1. Fetch current settings
   useEffect(() => {
     async function loadSettings() {
@@ -29,14 +51,20 @@ export default function SettingsPage() {
       // We search by 'user_id' because 'id' is just a random number for the profile itself
       const { data } = await supabase
         .from('profiles')
-        .select('system_prompt, clinic_name, avatar_url')
+        .select('*')
         .eq('user_id', user.id) 
         .single();
+
+      const profileData = data as {
+        system_prompt?: string | null;
+        clinic_name?: string | null;
+        avatar_url?: string | null;
+      } | null;
       
-      if (data) {
-        setPrompt(data.system_prompt || '');
-        setClinicName(data.clinic_name || '');
-        setAvatarUrl(data.avatar_url || '');
+      if (profileData) {
+        setPrompt(profileData.system_prompt || '');
+        setClinicName(profileData.clinic_name || '');
+        setAvatarUrl(profileData.avatar_url || '');
       }
     }
     loadSettings();
@@ -203,6 +231,83 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Subscription Section */}
+        <Card className="glass-card">
+          <CardHeader>
+            <CardTitle>Subscription</CardTitle>
+            <CardDescription>View your current plan and manage upgrades.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="rounded-lg border border-border p-4 bg-secondary/20">
+                <p className="text-sm text-muted-foreground">Current Plan</p>
+                <p className="text-lg font-semibold">{planType === 'starter' ? 'Starter' : 'Pro'}</p>
+              </div>
+              <div className="rounded-lg border border-border p-4 bg-secondary/20">
+                <p className="text-sm text-muted-foreground">Status</p>
+                <p className="text-lg font-semibold capitalize">{subscriptionStatus}</p>
+              </div>
+              <div className="rounded-lg border border-border p-4 bg-secondary/20">
+                <p className="text-sm text-muted-foreground">Trial Ends</p>
+                <p className="text-lg font-semibold">
+                  {subscriptionStatus === 'trial' && trialEndsAt
+                    ? `${getTrialDaysLeft(trialEndsAt)} days left`
+                    : trialEndsAt
+                      ? new Date(trialEndsAt).toLocaleDateString()
+                      : 'N/A'}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div
+                className={`rounded-lg border p-5 ${
+                  planType === 'starter'
+                    ? 'border-primary/50 bg-primary/5'
+                    : 'border-border bg-background'
+                }`}
+              >
+                <div className="space-y-2">
+                  <p className="text-lg font-semibold">Starter</p>
+                  <p className="text-sm text-muted-foreground">300 DH / month</p>
+                  <p className="text-xs text-muted-foreground">Basic chat access</p>
+                </div>
+                {planType !== 'starter' && (
+                  <Button
+                    className="mt-4 w-full"
+                    variant="outline"
+                    onClick={() => window.open(getWhatsAppLink('starter'), '_blank')}
+                  >
+                    Upgrade / Change Plan
+                  </Button>
+                )}
+              </div>
+
+              <div
+                className={`rounded-lg border p-5 ${
+                  planType === 'pro'
+                    ? 'border-primary/50 bg-primary/5'
+                    : 'border-border bg-background'
+                }`}
+              >
+                <div className="space-y-2">
+                  <p className="text-lg font-semibold">Pro</p>
+                  <p className="text-sm text-muted-foreground">500 DH / month</p>
+                  <p className="text-xs text-muted-foreground">All features unlocked</p>
+                </div>
+                {planType !== 'pro' && (
+                  <Button
+                    className="mt-4 w-full"
+                    onClick={() => window.open(getWhatsAppLink('pro'), '_blank')}
+                  >
+                    Upgrade / Change Plan
+                  </Button>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </AppLayout>
   );

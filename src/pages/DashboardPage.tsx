@@ -8,11 +8,8 @@ import {
   Calendar,
   CheckCircle2,
   Clock,
-  TrendingUp,
   MessageSquare,
-  Users,
-  Wallet,
-  Plus
+  Users
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -27,7 +24,7 @@ const item = {
 };
 
 export default function DashboardPage() {
-  const { profile } = useAuth(); // <--- This contains the LIVE credits
+  const { profile } = useAuth();
 
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ['dashboardStats'],
@@ -59,23 +56,6 @@ export default function DashboardPage() {
             </p>
           </div>
           
-          {/* THE NEW WALLET CARD */}
-          <Card className="glass-card border-primary/20 bg-primary/5 min-w-[250px]">
-            <CardContent className="p-4 flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Available Credits</p>
-                <div className="flex items-baseline gap-1">
-                   <span className="text-2xl font-bold text-primary">
-                     {profile?.credits || 0}
-                   </span>
-                   <span className="text-xs text-muted-foreground">msgs</span>
-                </div>
-              </div>
-              <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center">
-                <Wallet className="h-5 w-5 text-primary" />
-              </div>
-            </CardContent>
-          </Card>
         </div>
 
         {/* Stats Grid */}
