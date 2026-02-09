@@ -9,306 +9,270 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Bot, Save, Building2, Upload, Loader2 } from 'lucide-react';
+import { Bot, Save, Building2, Upload, Loader2, Info } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 export default function SettingsPage() {
-  const { user, refreshProfile, profile } = useAuth();
-  const { toast } = useToast();
-  
-  const [loading, setLoading] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  
-  const [prompt, setPrompt] = useState('');
-  const [clinicName, setClinicName] = useState('');
-  const [avatarUrl, setAvatarUrl] = useState('');
+	const { user, refreshProfile, profile, isSubscriptionExpired } = useAuth();
+	const { toast } = useToast();
 
-  const planType = profile?.plan_type || 'starter';
-  const subscriptionStatus = profile?.subscription_status || 'trial';
-  const trialEndsAt = profile?.trial_ends_at;
+	const [loading, setLoading] = useState(false);
+	const [uploading, setUploading] = useState(false);
 
-  const getTrialDaysLeft = (trialEndsAtValue?: string) => {
-    if (!trialEndsAtValue) return 0;
-    const endDate = new Date(trialEndsAtValue);
-    const today = new Date();
-    const diff = endDate.getTime() - today.getTime();
-    return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
-  };
+	const [prompt, setPrompt] = useState('');
+	const [clinicName, setClinicName] = useState('');
+	const [avatarUrl, setAvatarUrl] = useState('');
+	const [isAiEnabled, setIsAiEnabled] = useState(true);
 
-  const whatsappNumber = '212600000000';
-  const getWhatsAppLink = (targetPlan: 'starter' | 'pro') => {
-    const message =
-      targetPlan === 'pro'
-        ? 'Hello, I want to upgrade to the PRO Plan.'
-        : 'Hello, I want to change to the STARTER Plan.';
-    return `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`;
-  };
+	// Subscription Helpers
+	const planType = profile?.plan_type || 'starter';
+	const subscriptionStatus = profile?.subscription_status || 'trial';
+	const trialEndsAt = profile?.trial_ends_at;
 
+	const getTrialDaysLeft = (trialEndsAtValue?: string) => {
+		if (!trialEndsAtValue) return 0;
+		const endDate = new Date(trialEndsAtValue);
+		const today = new Date();
+		const diff = endDate.getTime() - today.getTime();
+		return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+	};
 
-  // 1. Fetch current settings
-  useEffect(() => {
-    async function loadSettings() {
-      if (!user) return;
-      // We search by 'user_id' because 'id' is just a random number for the profile itself
-      const { data } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', user.id) 
-        .single();
+	const whatsappNumber = '212600000000';
+	const getWhatsAppLink = (targetPlan: 'starter' | 'pro') => {
+		const message = targetPlan === 'pro' ? 'Hello, I want to upgrade to PRO.' : 'Hello, I want to change to STARTER.';
+		return `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`;
+	};
 
-      const profileData = data as {
-        system_prompt?: string | null;
-        clinic_name?: string | null;
-        avatar_url?: string | null;
-      } | null;
-      
-      if (profileData) {
-        setPrompt(profileData.system_prompt || '');
-        setClinicName(profileData.clinic_name || '');
-        setAvatarUrl(profileData.avatar_url || '');
-      }
-    }
-    loadSettings();
-  }, [user]);
+	useEffect(() => {
+		if (isSubscriptionExpired) setIsAiEnabled(false);
+	}, [isSubscriptionExpired]);
 
-  // 2. Handle Logo Upload
-  const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    try {
-      setUploading(true);
-      
-      // Safety Check: Ensure user is logged in
-      if (!user || !user.id) {
-        throw new Error('User session not found. Please log out and log in again.');
-      }
+	// 1. FETCH DATA (Split between 'profiles' and 'bot_config')
+	useEffect(() => {
+		async function loadSettings() {
+			if (!user) return;
 
-      if (!event.target.files || event.target.files.length === 0) {
-        throw new Error('You must select an image to upload.');
-      }
+			// A. Load Profile Data (Logo, Name) - Uses 'id'
+			const { data: profileData } = await supabase
+				.from('profiles')
+				.select('clinic_name, avatar_url')
+				.eq('id', user.id)
+				.maybeSingle();
 
-      const file = event.target.files[0];
-      const fileExt = file.name.split('.').pop();
-      // Create a unique filename with timestamp to prevent browser caching issues
-      const filePath = `${user.id}-${Date.now()}.${fileExt}`;
+			if (profileData) {
+				setClinicName(profileData.clinic_name || '');
+				setAvatarUrl(profileData.avatar_url || '');
+			}
 
-      // A. Upload to Bucket
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file, { 
-          upsert: true 
-        });
+			// B. Load Bot Config (System Prompt) - Uses 'user_id'
+			// Note: We ignore TS errors here in case the column is new in your DB
+			const { data: botData, error } = await supabase
+				.from('bot_config')
+				.select('system_prompt') // Fetching the specific column you asked for
+				.eq('user_id', user.id)
+				.maybeSingle();
 
-      if (uploadError) throw uploadError;
+			if (botData) {
+				// @ts-ignore: Assuming system_prompt exists in your DB even if types.ts is old
+				setPrompt(botData.system_prompt || '');
+			} else if (error) {
+				console.error('Error loading bot config:', error);
+			}
+		}
+		loadSettings();
+	}, [user]);
 
-      // B. Get the Public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath);
+	// 2. Handle Logo Upload
+	const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+		try {
+			setUploading(true);
+			if (!user || !event.target.files || event.target.files.length === 0) return;
 
-      // C. Update Profile (CRITICAL FIX: user_id)
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ avatar_url: publicUrl })
-        .eq('user_id', user.id); // <--- Matches the auth.users ID
+			const file = event.target.files[0];
+			const fileExt = file.name.split('.').pop();
+			const filePath = `${user.id}-${Date.now()}.${fileExt}`;
 
-      if (updateError) throw updateError;
+			// Upload
+			const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file, { upsert: true });
+			if (uploadError) throw uploadError;
 
-      // D. Success! Update the UI
-      setAvatarUrl(publicUrl);
-      await refreshProfile(); // Refresh sidebar instantly
-      toast({ title: 'Success', description: 'Logo updated successfully.' });
+			// Get URL
+			const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(filePath);
 
-    } catch (error: any) {
-      console.error(error);
-      toast({ variant: 'destructive', title: 'Upload Failed', description: error.message });
-    } finally {
-      setUploading(false);
-    }
-  };
+			// Save to Profiles (using ID)
+			await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', user.id);
 
-  // 3. Save Text Settings
-  const handleSave = async () => {
-    setLoading(true);
-    
-    // CRITICAL FIX: user_id
-    const { error } = await supabase
-      .from('profiles')
-      .update({ 
-        system_prompt: prompt,
-        clinic_name: clinicName 
-      })
-      .eq('user_id', user?.id); // <--- Matches the auth.users ID
-    
-    setLoading(false);
+			setAvatarUrl(publicUrl);
+			await refreshProfile();
+			toast({ title: 'Success', description: 'Logo updated.' });
 
-    if (error) {
-      toast({ variant: 'destructive', title: 'Error', description: error.message });
-    } else {
-      await refreshProfile();
-      toast({ title: 'Configuration Saved', description: 'Your settings have been updated.' });
-    }
-  };
+		} catch (error: any) {
+			toast({ variant: 'destructive', title: 'Upload Failed', description: error.message });
+		} finally {
+			setUploading(false);
+		}
+	};
 
-  return (
-    <AppLayout>
-      <div className="space-y-6 max-w-4xl mx-auto">
-        <div>
-          <h1 className="text-3xl font-bold mb-2">Settings</h1>
-          <p className="text-muted-foreground">Manage your clinic identity and AI personality.</p>
-        </div>
+	// 3. SAVE SETTINGS (Hybrid Save)
+	const handleSave = async () => {
+		if (!user) return;
+		setLoading(true);
 
-        <div className="grid gap-6 md:grid-cols-2">
-          {/* Identity Card */}
-          <Card className="glass-card">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Building2 className="h-5 w-5 text-primary" />
-                Clinic Identity
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              
-              {/* Logo Upload Section */}
-              <div className="flex items-center gap-4">
-                <Avatar className="h-20 w-20 border-2 border-primary/20">
-                  <AvatarImage src={avatarUrl} className="object-cover" />
-                  <AvatarFallback className="text-xl font-bold bg-secondary">
-                    {clinicName.substring(0, 2).toUpperCase() || 'DR'}
-                  </AvatarFallback>
-                </Avatar>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="logo-upload" className="cursor-pointer">
-                    <div className="flex items-center gap-2 px-4 py-2 bg-secondary hover:bg-secondary/80 rounded-md text-sm font-medium transition-colors border border-input">
-                      {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                      {uploading ? 'Uploading...' : 'Upload Logo'}
-                    </div>
-                  </Label>
-                  <Input 
-                    id="logo-upload" 
-                    type="file" 
-                    accept="image/*" 
-                    className="hidden" 
-                    onChange={handleLogoUpload}
-                    disabled={uploading}
-                  />
-                  <p className="text-xs text-muted-foreground">Recommended: 500x500px (PNG/JPG)</p>
-                </div>
-              </div>
+		try {
+			// A. Update Profile (Clinic Name)
+			const { error: profileError } = await supabase
+				.from('profiles')
+				.update({ clinic_name: clinicName })
+				.eq('id', user.id);
 
-              <div className="space-y-2">
-                <Label>Clinic Name (Used in Greetings)</Label>
-                <Input 
-                  value={clinicName} 
-                  onChange={(e) => setClinicName(e.target.value)} 
-                  placeholder="e.g. Smile Dental"
-                  className="bg-secondary/50"
-                />
-              </div>
-            </CardContent>
-          </Card>
+			if (profileError) throw profileError;
 
-          {/* System Prompt Card */}
-          <Card className="glass-card md:row-span-2">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Bot className="h-5 w-5 text-primary" />
-                System Prompt
-              </CardTitle>
-              <CardDescription>
-                This is the "Brain" of your bot. Give it specific instructions.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Textarea 
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                className="min-h-[300px] font-mono text-sm bg-secondary/50 leading-relaxed"
-                placeholder="You are a helpful receptionist for Dr. Smile. Your goal is to book appointments..."
-              />
-              <Button onClick={handleSave} disabled={loading} className="w-full">
-                <Save className="mr-2 h-4 w-4" />
-                {loading ? 'Saving...' : 'Update Settings'}
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
+			// B. Update Bot Config (System Prompt)
+			// We use UPSERT so it creates the row if it doesn't exist
+			const { error: configError } = await supabase
+				.from('bot_config')
+				.upsert({
+					user_id: user.id, // Search/Key by user_id
+					system_prompt: prompt, // The prompt column
+					// pricing_rules: prompt, // Uncomment if you prefer saving to pricing_rules instead
+					updated_at: new Date().toISOString()
+				}, { onConflict: 'user_id' });
 
-        {/* Subscription Section */}
-        <Card className="glass-card">
-          <CardHeader>
-            <CardTitle>Subscription</CardTitle>
-            <CardDescription>View your current plan and manage upgrades.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="rounded-lg border border-border p-4 bg-secondary/20">
-                <p className="text-sm text-muted-foreground">Current Plan</p>
-                <p className="text-lg font-semibold">{planType === 'starter' ? 'Starter' : 'Pro'}</p>
-              </div>
-              <div className="rounded-lg border border-border p-4 bg-secondary/20">
-                <p className="text-sm text-muted-foreground">Status</p>
-                <p className="text-lg font-semibold capitalize">{subscriptionStatus}</p>
-              </div>
-              <div className="rounded-lg border border-border p-4 bg-secondary/20">
-                <p className="text-sm text-muted-foreground">Trial Ends</p>
-                <p className="text-lg font-semibold">
-                  {subscriptionStatus === 'trial' && trialEndsAt
-                    ? `${getTrialDaysLeft(trialEndsAt)} days left`
-                    : trialEndsAt
-                      ? new Date(trialEndsAt).toLocaleDateString()
-                      : 'N/A'}
-                </p>
-              </div>
-            </div>
+			if (configError) throw configError;
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div
-                className={`rounded-lg border p-5 ${
-                  planType === 'starter'
-                    ? 'border-primary/50 bg-primary/5'
-                    : 'border-border bg-background'
-                }`}
-              >
-                <div className="space-y-2">
-                  <p className="text-lg font-semibold">Starter</p>
-                  <p className="text-sm text-muted-foreground">300 DH / month</p>
-                  <p className="text-xs text-muted-foreground">Basic chat access</p>
-                </div>
-                {planType !== 'starter' && (
-                  <Button
-                    className="mt-4 w-full"
-                    variant="outline"
-                    onClick={() => window.open(getWhatsAppLink('starter'), '_blank')}
-                  >
-                    Upgrade / Change Plan
-                  </Button>
-                )}
-              </div>
+			await refreshProfile();
+			toast({ title: 'Saved', description: 'Settings and Prompt updated successfully.' });
 
-              <div
-                className={`rounded-lg border p-5 ${
-                  planType === 'pro'
-                    ? 'border-primary/50 bg-primary/5'
-                    : 'border-border bg-background'
-                }`}
-              >
-                <div className="space-y-2">
-                  <p className="text-lg font-semibold">Pro</p>
-                  <p className="text-sm text-muted-foreground">500 DH / month</p>
-                  <p className="text-xs text-muted-foreground">All features unlocked</p>
-                </div>
-                {planType !== 'pro' && (
-                  <Button
-                    className="mt-4 w-full"
-                    onClick={() => window.open(getWhatsAppLink('pro'), '_blank')}
-                  >
-                    Upgrade / Change Plan
-                  </Button>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    </AppLayout>
-  );
+		} catch (error: any) {
+			toast({ variant: 'destructive', title: 'Error', description: error.message });
+		} finally {
+			setLoading(false);
+		}
+	};
+
+	return (
+		<AppLayout>
+			<div className="space-y-6 max-w-4xl mx-auto">
+				<div>
+					<h1 className="text-3xl font-bold mb-2">Settings</h1>
+					<p className="text-muted-foreground">Manage your clinic identity and AI personality.</p>
+				</div>
+
+				<div className="grid gap-6 md:grid-cols-2">
+					{/* Identity Card */}
+					<Card className="glass-card">
+						<CardHeader>
+							<CardTitle className="flex items-center gap-2">
+								<Building2 className="h-5 w-5 text-primary" />
+								Clinic Identity
+							</CardTitle>
+						</CardHeader>
+						<CardContent className="space-y-6">
+							<div className="flex items-center gap-4">
+								<Avatar className="h-20 w-20 border-2 border-primary/20">
+									<AvatarImage src={avatarUrl} className="object-cover" />
+									<AvatarFallback className="text-xl font-bold bg-secondary">
+										{clinicName.substring(0, 2).toUpperCase() || 'DR'}
+									</AvatarFallback>
+								</Avatar>
+
+								<div className="space-y-2">
+									<Label htmlFor="logo-upload" className="cursor-pointer">
+										<div className="flex items-center gap-2 px-4 py-2 bg-secondary hover:bg-secondary/80 rounded-md text-sm font-medium transition-colors border border-input">
+											{uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+											{uploading ? 'Uploading...' : 'Upload Logo'}
+										</div>
+									</Label>
+									<Input id="logo-upload" type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} disabled={uploading} />
+								</div>
+							</div>
+
+							<div className="space-y-2">
+								<Label>Clinic Name (Used in Greetings)</Label>
+								<Input
+									value={clinicName}
+									onChange={(e) => setClinicName(e.target.value)}
+									placeholder="e.g. Smile Dental"
+									disabled={isSubscriptionExpired}
+								/>
+							</div>
+						</CardContent>
+					</Card>
+
+					{/* System Prompt Card */}
+					<Card className="glass-card md:row-span-2">
+						<CardHeader>
+							<CardTitle className="flex items-center gap-2">
+								<Bot className="h-5 w-5 text-primary" />
+								System Prompt
+							</CardTitle>
+							<CardDescription>
+								Instructions for your AI Receptionist.
+							</CardDescription>
+						</CardHeader>
+						<CardContent className="space-y-4">
+							<div className="flex items-center justify-between mb-2">
+								<div className="flex items-center gap-2">
+									<Label htmlFor="ai-toggle" className="text-sm font-medium">Enable AI</Label>
+									{isSubscriptionExpired && (
+										<TooltipProvider>
+											<Tooltip>
+												<TooltipTrigger><Info className="h-4 w-4 text-destructive" /></TooltipTrigger>
+												<TooltipContent>Plan expired.</TooltipContent>
+											</Tooltip>
+										</TooltipProvider>
+									)}
+								</div>
+								<Switch id="ai-toggle" checked={isAiEnabled} onCheckedChange={setIsAiEnabled} disabled={isSubscriptionExpired} />
+							</div>
+
+							<Textarea
+								value={prompt}
+								onChange={(e) => setPrompt(e.target.value)}
+								className="min-h-[300px] font-mono text-sm bg-secondary/50 leading-relaxed"
+								placeholder="You are a helpful receptionist..."
+								disabled={isSubscriptionExpired}
+							/>
+							<Button onClick={handleSave} disabled={loading || isSubscriptionExpired} className="w-full">
+								<Save className="mr-2 h-4 w-4" />
+								{loading ? 'Saving...' : 'Update Settings'}
+							</Button>
+						</CardContent>
+					</Card>
+				</div>
+
+				{/* Subscription Section (Read-Only Info) */}
+				<Card className="glass-card">
+					<CardHeader><CardTitle>Subscription</CardTitle></CardHeader>
+					<CardContent className="space-y-6">
+						<div className="grid gap-4 md:grid-cols-3">
+							<div className="rounded-lg border p-4 bg-secondary/20">
+								<p className="text-sm text-muted-foreground">Plan</p>
+								<p className="text-lg font-semibold capitalize">{planType}</p>
+							</div>
+							<div className="rounded-lg border p-4 bg-secondary/20">
+								<p className="text-sm text-muted-foreground">Status</p>
+								<p className="text-lg font-semibold capitalize">{subscriptionStatus}</p>
+							</div>
+							<div className="rounded-lg border p-4 bg-secondary/20">
+								<p className="text-sm text-muted-foreground">Trial Left</p>
+								<p className="text-lg font-semibold">{subscriptionStatus === 'trial' ? `${getTrialDaysLeft(trialEndsAt)} days` : 'N/A'}</p>
+							</div>
+						</div>
+						<div className="grid gap-4 md:grid-cols-2">
+							{/* Plan Buttons */}
+							<Button variant="outline" onClick={() => window.open(getWhatsAppLink('starter'), '_blank')}>Contact for Starter</Button>
+							<Button onClick={() => window.open(getWhatsAppLink('pro'), '_blank')}>Contact for Pro</Button>
+						</div>
+					</CardContent>
+				</Card>
+			</div>
+		</AppLayout>
+	);
 }

@@ -1,156 +1,388 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, Smartphone, QrCode, RefreshCw, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Loader2, Smartphone, QrCode, CheckCircle2, RefreshCw, Timer, XCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+
+const WAHA_URL = 'http://72.62.237.248:3000';
+const API_KEY = 'my-secret-key';
+const REFRESH_INTERVAL = 20; // seconds
 
 export default function ConnectPage() {
-  const { user } = useAuth();
+  const { user, isSubscriptionExpired } = useAuth();
   const { toast } = useToast();
   
-  // UI States for future API integration
   const [status, setStatus] = useState<'disconnected' | 'scanning' | 'connected'>('disconnected');
+  const [wahaSessionName, setWahaSessionName] = useState<string | null>(null);
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  // New State for Countdown
+  const [timeLeft, setTimeLeft] = useState(REFRESH_INTERVAL);
 
-  // 1. Fetch real status from DB on load
+  // ------------------------------------------------------------------
+  // 1. STATUS SYNC (The Brain)
+  // Checks both Database AND WAHA Server to ensure true status
+  // ------------------------------------------------------------------
   useEffect(() => {
-    async function checkStatus() {
+    async function checkRealStatus() {
       if (!user) return;
-      const { data } = await supabase
+
+      // A. Get Config from DB
+      const { data: profile } = await supabase
         .from('profiles')
-        .select('whatsapp_status')
+        .select('whatsapp_status, waha_session_name') 
         .eq('id', user.id)
-        .single();
+        .maybeSingle();
       
-      if (data?.whatsapp_status) {
-        // Cast to our known types
-        setStatus(data.whatsapp_status as any);
+      if (!profile) return;
+      
+      const dbStatus = profile.whatsapp_status as any;
+      const sessionName = profile.waha_session_name;
+      setWahaSessionName(sessionName);
+
+      // B. If we have a session name, Ask WAHA for the REAL status
+      if (sessionName) {
+        try {
+          const response = await fetch(`${WAHA_URL}/api/sessions/${sessionName}`, {
+            method: 'GET',
+            headers: { 'X-Api-Key': API_KEY }
+          });
+
+          if (response.ok) {
+            const wahaData = await response.json();
+            // wahaData.status is usually 'STOPPED', 'STARTING', 'SCAN_QR_CODE', or 'WORKING'
+            const realStatus = wahaData.status;
+
+            // DETECT CONNECTED: If WAHA says 'WORKING', we are linked!
+            if (realStatus === 'WORKING' && dbStatus !== 'connected') {
+              setStatus('connected');
+              // Update DB to match reality
+              await supabase.from('profiles').update({ whatsapp_status: 'connected' }).eq('id', user.id);
+              toast({ title: "Connected!", description: "WhatsApp linked successfully." });
+              return; 
+            }
+
+            // DETECT DISCONNECTED: If WAHA says 'STOPPED' but DB thinks 'scanning'
+            if (realStatus === 'STOPPED' && dbStatus === 'scanning') {
+               // Don't auto-disconnect here to avoid flickering, but be aware
+            }
+          } 
+        } catch (e) {
+          console.error("WAHA Check failed", e);
+        }
       }
+
+      // Fallback: Use DB status if we didn't force an update above
+      if (dbStatus) setStatus(dbStatus);
     }
-    checkStatus();
+    
+    checkRealStatus();
+    // Poll every 5 seconds to catch the moment user scans the QR
+    const interval = setInterval(checkRealStatus, 5000); 
+    return () => clearInterval(interval);
   }, [user]);
 
-  // 2. Mock Function: This simulates asking WAHA for a QR code
+
+  // ------------------------------------------------------------------
+  // 2. QR FETCH LOGIC
+  // ------------------------------------------------------------------
+  const fetchQR = useCallback(async () => {
+    if (isSubscriptionExpired || !wahaSessionName || status !== 'scanning') return;
+
+    setIsRefreshing(true);
+    try {
+      const response = await fetch(`${WAHA_URL}/api/${wahaSessionName}/auth/qr?format=image`, {
+        method: 'GET',
+        headers: {
+          'X-Api-Key': API_KEY,
+          'Accept': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        // If we get 400/409, it might mean we are ALREADY connected
+        if (response.status === 400 || response.status === 409) {
+           // Double check connection
+           return; 
+        }
+        throw new Error('QR Fetch Failed');
+      }
+      
+      const data = await response.json();
+      
+      if (data?.data && data?.mimetype) {
+         const src = data.data.startsWith('data:') 
+           ? data.data 
+           : `data:${data.mimetype};base64,${data.data}`;
+         setQrCode(src);
+      }
+    } catch (err) {
+      console.error('QR Fetch Error:', err);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [wahaSessionName, isSubscriptionExpired, status]);
+
+
+  // ------------------------------------------------------------------
+  // 3. COUNTDOWN TIMER
+  // ------------------------------------------------------------------
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+
+    if (status === 'scanning') {
+      // Only fetch if we don't have one, or timer hits 0
+      if (!qrCode) fetchQR();
+
+      timer = setInterval(() => {
+        setTimeLeft((prev) => {
+          if (prev <= 1) {
+            fetchQR(); // Refresh!
+            return REFRESH_INTERVAL;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else {
+      setTimeLeft(REFRESH_INTERVAL);
+    }
+
+    return () => clearInterval(timer);
+  }, [status, fetchQR, qrCode]);
+
+
+  // ------------------------------------------------------------------
+  // 4. ACTION HANDLERS
+  // ------------------------------------------------------------------
+
   const handleStartSession = async () => {
+    if (isSubscriptionExpired || !wahaSessionName) return;
+
     setIsLoading(true);
-    
-    // TODO: Later, replace this with: axios.get('https://your-waha-url/api/start')
-    
-    // SIMULATION (Remove this later when API is ready)
-    setTimeout(async () => {
-      setStatus('scanning');
-      // Update DB to match
+    try {
+      // 1. Check if session exists first (Prevent error)
+      const checkParams = new URLSearchParams({ all: 'true' });
+      const checkRes = await fetch(`${WAHA_URL}/api/sessions?${checkParams}`, {
+         headers: { 'X-Api-Key': API_KEY }
+      });
+      const sessions = await checkRes.json();
+      const existing = sessions.find((s: any) => s.name === wahaSessionName);
+
+      if (existing && existing.status === 'WORKING') {
+         // ALREADY LINKED!
+         setStatus('connected');
+         await supabase.from('profiles').update({ whatsapp_status: 'connected' }).eq('id', user?.id);
+         toast({ title: "Already Linked", description: "System is already online." });
+         setIsLoading(false);
+         return;
+      }
+
+      // 2. Start Session (Create if missing, or start if stopped)
+      await fetch(`${WAHA_URL}/api/sessions`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-Api-Key': API_KEY 
+        },
+        body: JSON.stringify({
+          name: wahaSessionName, 
+          config: { proxy: null, debug: false }
+        })
+      });
+
+      // 3. Update DB
       await supabase.from('profiles').update({ whatsapp_status: 'scanning' }).eq('id', user?.id);
+      
+      setStatus('scanning');
+      fetchQR(); // Get the first code immediately
+      
+    } catch (error) {
+      console.error("Start error:", error);
+      toast({ variant: "destructive", title: "Connection Failed", description: "Could not reach WhatsApp server." });
+    } finally {
       setIsLoading(false);
-      toast({ title: 'Session Started', description: 'Please scan the QR code.' });
-    }, 1500);
+    }
   };
 
-  // 3. Mock Function: Simulates disconnecting
-  const handleLogout = async () => {
-    setIsLoading(true);
-    // TODO: Later, replace with: axios.post('https://your-waha-url/api/logout')
-    
-    await supabase.from('profiles').update({ whatsapp_status: 'disconnected' }).eq('id', user?.id);
+  // TRUE CANCEL: Stops everything
+  const handleCancel = async () => {
+    // 1. Immediate UI Update
     setStatus('disconnected');
     setQrCode(null);
-    setIsLoading(false);
+    setTimeLeft(REFRESH_INTERVAL);
+
+    // 2. Update DB (Critical: Prevents auto-restart)
+    if (user?.id) {
+      await supabase.from('profiles').update({ whatsapp_status: 'disconnected' }).eq('id', user.id);
+    }
+
+    // 3. Clean up WAHA Session (Stop the session so it doesn't linger)
+    if (wahaSessionName) {
+      try {
+        await fetch(`${WAHA_URL}/api/sessions/${wahaSessionName}`, {
+          method: 'DELETE',
+          headers: { 'X-Api-Key': API_KEY }
+        });
+      } catch (e) { console.warn("Delete session ignored", e); }
+    }
+  };
+
+  const handleManualRefresh = () => {
+    fetchQR();
+    setTimeLeft(REFRESH_INTERVAL);
+    toast({ description: "Checking for new code..." });
   };
 
   return (
     <AppLayout>
-      <div className="max-w-3xl mx-auto space-y-8">
-        <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold">Connect WhatsApp</h1>
-          <p className="text-muted-foreground">Link your existing WhatsApp number to enable the AI.</p>
+      <div className="max-w-4xl mx-auto space-y-8">
+        <div className="text-center">
+          <h1 className="text-3xl font-bold mb-2">WhatsApp Connection</h1>
+          <p className="text-muted-foreground">Scan the QR code to link your clinic's WhatsApp.</p>
         </div>
 
-        <Card className="glass-card overflow-hidden border-primary/20">
+        <Card className="glass-card border-primary/20 overflow-hidden shadow-2xl">
           <CardContent className="p-0">
-            <div className="grid md:grid-cols-2 min-h-[400px]">
+            <div className="grid md:grid-cols-2 min-h-[500px]">
               
               {/* Left Side: Instructions */}
-              <div className="p-8 space-y-6 flex flex-col justify-center bg-secondary/20">
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">1</div>
-                    <p>Open WhatsApp on your phone</p>
+              <div className="p-8 space-y-8 flex flex-col justify-center bg-secondary/10 border-r border-white/5">
+                <div className="space-y-6">
+                  <div className="flex items-start gap-4 p-4 rounded-lg bg-white/5 border border-white/10">
+                    <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary shrink-0">1</div>
+                    <div>
+                      <p className="font-medium text-foreground">Open WhatsApp</p>
+                      <p className="text-sm text-muted-foreground">Go to Settings on your mobile.</p>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">2</div>
-                    <p>Go to Settings {'>'} Linked Devices</p>
+                  <div className="flex items-start gap-4 p-4 rounded-lg bg-white/5 border border-white/10">
+                    <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary shrink-0">2</div>
+                    <div>
+                      <p className="font-medium text-foreground">Tap "Linked Devices"</p>
+                      <p className="text-sm text-muted-foreground">Select "Link a Device".</p>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">3</div>
-                    <p>Tap "Link a Device" and scan</p>
+                  <div className="flex items-start gap-4 p-4 rounded-lg bg-white/5 border border-white/10">
+                    <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary shrink-0">3</div>
+                    <div>
+                      <p className="font-medium text-foreground">Scan QR Code</p>
+                      <p className="text-sm text-muted-foreground">Point your camera at the screen.</p>
+                    </div>
                   </div>
                 </div>
 
-                <div className="pt-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-sm font-medium">Current Status:</span>
-                    {status === 'connected' && <Badge className="bg-green-500 hover:bg-green-600">Connected</Badge>}
-                    {status === 'scanning' && <Badge variant="secondary" className="animate-pulse">Waiting for Scan...</Badge>}
-                    {status === 'disconnected' && <Badge variant="destructive">Disconnected</Badge>}
+                <div className="pt-4 border-t border-white/5">
+                  <p className="text-xs text-muted-foreground mb-2 uppercase tracking-wider font-semibold">Current Status</p>
+                  <div className="flex items-center gap-3">
+                    {status === 'connected' && <Badge className="bg-green-500 px-3 py-1">Online & Ready</Badge>}
+                    {status === 'scanning' && <Badge variant="secondary" className="animate-pulse px-3 py-1">Waiting for Scan...</Badge>}
+                    {status === 'disconnected' && <Badge variant="destructive" className="px-3 py-1">Offline</Badge>}
                   </div>
                 </div>
               </div>
 
-              {/* Right Side: The QR Display Area */}
-              <div className="p-8 flex flex-col items-center justify-center border-l border-white/5 bg-black/20">
+              {/* Right Side: Visual QR Display */}
+              <div className="p-8 flex flex-col items-center justify-center bg-gradient-to-br from-black/40 to-black/60 relative">
                 
-                {/* STATE 1: CONNECTED */}
-                {status === 'connected' && (
-                  <div className="text-center space-y-4">
-                    <div className="h-24 w-24 bg-green-500/20 rounded-full flex items-center justify-center mx-auto">
+                {status === 'connected' ? (
+                  <div className="text-center space-y-6 animate-in fade-in zoom-in duration-500">
+                    <div className="h-24 w-24 bg-green-500/20 rounded-full flex items-center justify-center mx-auto ring-4 ring-green-500/10">
                       <CheckCircle2 className="h-12 w-12 text-green-500" />
                     </div>
-                    <h3 className="text-xl font-bold text-white">System Online</h3>
-                    <p className="text-sm text-muted-foreground">Your AI is active and replying to messages.</p>
-                    <Button variant="destructive" onClick={handleLogout} disabled={isLoading}>
-                      {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    <div>
+                      <h3 className="text-xl font-bold text-white">WhatsApp Linked</h3>
+                      <p className="text-sm text-white/60 mt-1">Your AI receptionist is active.</p>
+                    </div>
+                    {/* Disconnect calls the same Cancel logic to be safe */}
+                    <Button variant="destructive" onClick={handleCancel} disabled={isLoading} className="w-full max-w-xs">
                       Disconnect
                     </Button>
                   </div>
-                )}
-
-                {/* STATE 2: SCANNING (Show QR) */}
-                {status === 'scanning' && (
-                  <div className="text-center space-y-4 w-full">
-                    {qrCode ? (
-                       <img src={qrCode} alt="QR Code" className="w-48 h-48 mx-auto rounded-lg" />
-                    ) : (
-                       // Placeholder for the QR until API sends it
-                       <div className="w-48 h-48 mx-auto bg-white rounded-lg flex items-center justify-center">
-                         <QrCode className="h-16 w-16 text-black opacity-20" />
-                         <p className="absolute text-xs text-black font-medium">QR API Not Linked</p>
-                       </div>
-                    )}
-                    <p className="text-sm text-muted-foreground animate-pulse">Waiting for connection...</p>
-                    <Button variant="outline" size="sm" onClick={() => setStatus('disconnected')}>Cancel</Button>
-                  </div>
-                )}
-
-                {/* STATE 3: DISCONNECTED */}
-                {status === 'disconnected' && (
-                  <div className="text-center space-y-4">
-                    <div className="h-24 w-24 bg-secondary rounded-full flex items-center justify-center mx-auto">
-                      <Smartphone className="h-10 w-10 text-muted-foreground" />
+                ) : status === 'scanning' ? (
+                  <div className="w-full max-w-xs space-y-6 animate-in fade-in slide-in-from-bottom-4">
+                    
+                    {/* QR Card */}
+                    <div className="relative group bg-white p-4 rounded-2xl shadow-xl border-4 border-white/10 mx-auto">
+                      {qrCode ? (
+                         <>
+                           <img src={qrCode} alt="QR Code" className="w-full h-auto rounded-lg mix-blend-multiply" />
+                           {isRefreshing && (
+                             <div className="absolute inset-0 bg-white/90 flex items-center justify-center backdrop-blur-sm rounded-lg transition-all">
+                               <Loader2 className="h-10 w-10 text-primary animate-spin" />
+                             </div>
+                           )}
+                         </>
+                      ) : (
+                         <div className="aspect-square flex items-center justify-center bg-gray-100 rounded-lg animate-pulse">
+                           <QrCode className="h-16 w-16 text-gray-300" />
+                         </div>
+                      )}
                     </div>
-                    <p className="text-sm text-muted-foreground">Session is inactive</p>
-                    <Button onClick={handleStartSession} disabled={isLoading} className="bg-[#25D366] hover:bg-[#25D366]/90 text-black font-bold">
-                      {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <QrCode className="mr-2 h-4 w-4" />}
-                      Generate QR Code
+
+                    {/* Progress & Controls */}
+                    <div className="space-y-3 bg-black/40 p-4 rounded-xl border border-white/5 backdrop-blur-md">
+                      <div className="flex justify-between items-center text-xs text-white/70">
+                        <span className="flex items-center gap-1.5">
+                          <Timer className="h-3.5 w-3.5" />
+                          Auto-refresh in {timeLeft}s
+                        </span>
+                        <span className="text-[10px] uppercase tracking-wider opacity-50">Secured</span>
+                      </div>
+                      
+                      <Progress value={(timeLeft / REFRESH_INTERVAL) * 100} className="h-1.5" />
+                      
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={handleManualRefresh}
+                          disabled={isRefreshing}
+                          className="w-full text-xs h-8 bg-white/5 hover:bg-white/10 border-white/10 text-white"
+                        >
+                          <RefreshCw className={`mr-2 h-3 w-3 ${isRefreshing ? 'animate-spin' : ''}`} />
+                          Refresh Now
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={handleCancel} // USING THE NEW CANCEL LOGIC
+                          className="w-full text-xs h-8 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                        >
+                          <XCircle className="mr-2 h-3 w-3" />
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+
+                  </div>
+                ) : (
+                  <div className="text-center space-y-6">
+                    <div className="h-24 w-24 bg-white/5 rounded-full flex items-center justify-center mx-auto border border-white/10">
+                      <Smartphone className="h-10 w-10 text-white/40" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-medium text-white">No Active Session</h3>
+                      <p className="text-sm text-white/50 mt-1">Start a session to generate a secure QR code.</p>
+                    </div>
+                    <Button 
+                      onClick={handleStartSession} 
+                      disabled={isLoading || !wahaSessionName} 
+                      className="w-full max-w-xs bg-[#25D366] hover:bg-[#25D366]/90 text-black font-bold h-11"
+                    >
+                      {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <QrCode className="mr-2 h-5 w-5" />}
+                      Start Connection
                     </Button>
                   </div>
                 )}
-
               </div>
+
             </div>
           </CardContent>
         </Card>

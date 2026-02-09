@@ -15,11 +15,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Plus, Loader2, Phone, User, FileText } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/hooks/useAuth'; // Added useAuth to get your ID
+import { useAuth } from '@/hooks/useAuth'; 
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import '@/App.css';
 
-// 1. Setup Localizer
 const locales = { 'en-US': enUS };
 const localizer = dateFnsLocalizer({
   format,
@@ -43,7 +42,7 @@ interface AppointmentEvent {
 
 export default function AppointmentsPage() {
   const { toast } = useToast();
-  const { user } = useAuth(); // Get current user
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   
   // State for View Dialog
@@ -62,16 +61,24 @@ export default function AppointmentsPage() {
 
   const [view, setView] = useState<View>(Views.MONTH);
 
-  // 2. Fetch Appointments
+  // 1. FIXED QUERY: Filter by doctor_id
   const { data: events, isLoading } = useQuery({
-    queryKey: ['appointments'],
+    queryKey: ['appointments', user?.id], // Dependent on user.id
     queryFn: async () => {
-      const { data, error } = await supabase.from('appointments').select('*');
+      if (!user?.id) return [];
+
+      // SECURITY FIX: Only fetch appointments for the logged-in doctor
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('*')
+        .eq('doctor_id', user.id); // <--- The Critical Fix
+
       if (error) {
         toast({ variant: 'destructive', title: 'Error', description: error.message });
         throw error;
       }
-      return data.map((apt) => ({
+
+      return data.map((apt: any) => ({
         id: apt.id,
         title: apt.patient_name || 'Unknown',
         start: new Date(apt.start_time),
@@ -83,9 +90,10 @@ export default function AppointmentsPage() {
         },
       })) as AppointmentEvent[];
     },
+    enabled: !!user?.id, // Don't run query until user is loaded
   });
 
-  // 3. Handle Create Submit
+  // 2. Handle Create Submit
   const handleCreateAppointment = async () => {
     if (!user) return;
     if (!newAppointment.patientName || !newAppointment.date || !newAppointment.time) {
@@ -93,12 +101,11 @@ export default function AppointmentsPage() {
       return;
     }
 
-    // Combine Date and Time into ISO string
     const startDateTime = new Date(`${newAppointment.date}T${newAppointment.time}`);
-    const endDateTime = new Date(startDateTime.getTime() + 30 * 60000); // Add 30 minutes automatically
+    const endDateTime = new Date(startDateTime.getTime() + 30 * 60000); // 30 mins
 
     const { error } = await supabase.from('appointments').insert({
-      doctor_id: user.id, // Assign to YOU
+      doctor_id: user.id, // Assign to current user
       patient_name: newAppointment.patientName,
       patient_phone: newAppointment.phone,
       start_time: startDateTime.toISOString(),
@@ -112,8 +119,8 @@ export default function AppointmentsPage() {
     } else {
       toast({ title: 'Success', description: 'Appointment booked successfully.' });
       setIsCreateDialogOpen(false);
-      setNewAppointment({ patientName: '', phone: '', date: '', time: '', notes: '' }); // Reset form
-      queryClient.invalidateQueries({ queryKey: ['appointments'] }); // Refresh calendar
+      setNewAppointment({ patientName: '', phone: '', date: '', time: '', notes: '' });
+      queryClient.invalidateQueries({ queryKey: ['appointments'] });
     }
   };
 
@@ -130,7 +137,6 @@ export default function AppointmentsPage() {
             <h1 className="text-3xl font-bold tracking-tight text-foreground">Appointments</h1>
             <p className="text-muted-foreground">Manage your clinic's schedule.</p>
           </div>
-          {/* THE FIXED BUTTON */}
           <Button 
             className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
             onClick={() => setIsCreateDialogOpen(true)}
@@ -173,7 +179,7 @@ export default function AppointmentsPage() {
           </CardContent>
         </Card>
 
-        {/* 1. VIEW Dialog (Existing) */}
+        {/* VIEW Dialog */}
         <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
           <DialogContent className="glass-card">
             <DialogHeader><DialogTitle>{selectedEvent?.title}</DialogTitle></DialogHeader>
@@ -195,7 +201,7 @@ export default function AppointmentsPage() {
           </DialogContent>
         </Dialog>
 
-        {/* 2. CREATE Dialog (New) */}
+        {/* CREATE Dialog */}
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogContent className="glass-card sm:max-w-[425px]">
             <DialogHeader>
@@ -256,7 +262,6 @@ export default function AppointmentsPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-
       </div>
     </AppLayout>
   );
