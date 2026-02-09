@@ -53,12 +53,12 @@ export default function SettingsPage() {
 		if (isSubscriptionExpired) setIsAiEnabled(false);
 	}, [isSubscriptionExpired]);
 
-	// 1. FETCH DATA (Split between 'profiles' and 'bot_config')
+	// 1. FETCH DATA
 	useEffect(() => {
 		async function loadSettings() {
 			if (!user) return;
 
-			// A. Load Profile Data (Logo, Name) - Uses 'id'
+			// A. Load Profile Data
 			const { data: profileData } = await supabase
 				.from('profiles')
 				.select('clinic_name, avatar_url')
@@ -70,19 +70,16 @@ export default function SettingsPage() {
 				setAvatarUrl(profileData.avatar_url || '');
 			}
 
-			// B. Load Bot Config (System Prompt) - Uses 'user_id'
-			// Note: We ignore TS errors here in case the column is new in your DB
+			// B. Load Bot Config (FIXED: Using 'bot_configs')
 			const { data: botData, error } = await supabase
-				.from('bot_config')
-				.select('system_prompt') // Fetching the specific column you asked for
+				.from('bot_configs') // <--- FIXED PLURAL NAME
+				.select('system_prompt') 
 				.eq('user_id', user.id)
 				.maybeSingle();
 
 			if (botData) {
-				// @ts-ignore: Assuming system_prompt exists in your DB even if types.ts is old
+				// @ts-ignore
 				setPrompt(botData.system_prompt || '');
-			} else if (error) {
-				console.error('Error loading bot config:', error);
 			}
 		}
 		loadSettings();
@@ -98,14 +95,10 @@ export default function SettingsPage() {
 			const fileExt = file.name.split('.').pop();
 			const filePath = `${user.id}-${Date.now()}.${fileExt}`;
 
-			// Upload
 			const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file, { upsert: true });
 			if (uploadError) throw uploadError;
 
-			// Get URL
 			const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(filePath);
-
-			// Save to Profiles (using ID)
 			await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', user.id);
 
 			setAvatarUrl(publicUrl);
@@ -119,13 +112,13 @@ export default function SettingsPage() {
 		}
 	};
 
-	// 3. SAVE SETTINGS (Hybrid Save)
+	// 3. SAVE SETTINGS
 	const handleSave = async () => {
 		if (!user) return;
 		setLoading(true);
 
 		try {
-			// A. Update Profile (Clinic Name)
+			// A. Update Profile
 			const { error: profileError } = await supabase
 				.from('profiles')
 				.update({ clinic_name: clinicName })
@@ -133,14 +126,12 @@ export default function SettingsPage() {
 
 			if (profileError) throw profileError;
 
-			// B. Update Bot Config (System Prompt)
-			// We use UPSERT so it creates the row if it doesn't exist
+			// B. Update Bot Config (FIXED: Using 'bot_configs')
 			const { error: configError } = await supabase
-				.from('bot_config')
+				.from('bot_configs') // <--- FIXED PLURAL NAME
 				.upsert({
-					user_id: user.id, // Search/Key by user_id
-					system_prompt: prompt, // The prompt column
-					// pricing_rules: prompt, // Uncomment if you prefer saving to pricing_rules instead
+					user_id: user.id,
+					system_prompt: prompt,
 					updated_at: new Date().toISOString()
 				}, { onConflict: 'user_id' });
 
@@ -247,7 +238,7 @@ export default function SettingsPage() {
 					</Card>
 				</div>
 
-				{/* Subscription Section (Read-Only Info) */}
+				{/* Subscription Section */}
 				<Card className="glass-card">
 					<CardHeader><CardTitle>Subscription</CardTitle></CardHeader>
 					<CardContent className="space-y-6">
@@ -266,7 +257,6 @@ export default function SettingsPage() {
 							</div>
 						</div>
 						<div className="grid gap-4 md:grid-cols-2">
-							{/* Plan Buttons */}
 							<Button variant="outline" onClick={() => window.open(getWhatsAppLink('starter'), '_blank')}>Contact for Starter</Button>
 							<Button onClick={() => window.open(getWhatsAppLink('pro'), '_blank')}>Contact for Pro</Button>
 						</div>
