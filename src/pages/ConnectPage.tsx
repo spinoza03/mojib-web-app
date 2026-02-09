@@ -9,7 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 
-const WAHA_URL = 'http://72.62.237.248:3000';
+const WAHA_URL = 'https://waha.mojib.online';
 const API_KEY = 'my-secret-key';
 const REFRESH_INTERVAL = 20; 
 
