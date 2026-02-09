@@ -11,7 +11,7 @@ import { Progress } from '@/components/ui/progress';
 
 const WAHA_URL = 'http://72.62.237.248:3000';
 const API_KEY = 'my-secret-key';
-const REFRESH_INTERVAL = 20; // seconds
+const REFRESH_INTERVAL = 20; 
 
 export default function ConnectPage() {
   const { user, isSubscriptionExpired } = useAuth();
@@ -22,19 +22,15 @@ export default function ConnectPage() {
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  
-  // New State for Countdown
   const [timeLeft, setTimeLeft] = useState(REFRESH_INTERVAL);
 
   // ------------------------------------------------------------------
-  // 1. STATUS SYNC (The Brain)
-  // Checks both Database AND WAHA Server to ensure true status
+  // 1. STATUS SYNC & NUMBER CAPTURE (The Brain)
   // ------------------------------------------------------------------
   useEffect(() => {
     async function checkRealStatus() {
       if (!user) return;
 
-      // A. Get Config from DB
       const { data: profile } = await supabase
         .from('profiles')
         .select('whatsapp_status, waha_session_name') 
@@ -47,7 +43,6 @@ export default function ConnectPage() {
       const sessionName = profile.waha_session_name;
       setWahaSessionName(sessionName);
 
-      // B. If we have a session name, Ask WAHA for the REAL status
       if (sessionName) {
         try {
           const response = await fetch(`${WAHA_URL}/api/sessions/${sessionName}`, {
@@ -57,21 +52,40 @@ export default function ConnectPage() {
 
           if (response.ok) {
             const wahaData = await response.json();
-            // wahaData.status is usually 'STOPPED', 'STARTING', 'SCAN_QR_CODE', or 'WORKING'
             const realStatus = wahaData.status;
 
-            // DETECT CONNECTED: If WAHA says 'WORKING', we are linked!
+            // --- DETECT SUCCESSFUL CONNECTION ---
             if (realStatus === 'WORKING' && dbStatus !== 'connected') {
               setStatus('connected');
-              // Update DB to match reality
-              await supabase.from('profiles').update({ whatsapp_status: 'connected' }).eq('id', user.id);
-              toast({ title: "Connected!", description: "WhatsApp linked successfully." });
+              
+              // 1. Fetch the REAL connected number
+              const meResponse = await fetch(`${WAHA_URL}/api/sessions/${sessionName}/me`, {
+                headers: { 'X-Api-Key': API_KEY }
+              });
+              
+              let realPhoneNumber = null;
+              if (meResponse.ok) {
+                 const meData = await meResponse.json();
+                 // Format is usually "212600000000@c.us" -> We want "212600000000"
+                 if (meData?.id) {
+                    realPhoneNumber = meData.id.split('@')[0];
+                 }
+              }
+
+              // 2. Update DB with 'connected' AND the Real Phone Number
+              const updateData: any = { whatsapp_status: 'connected' };
+              if (realPhoneNumber) {
+                 updateData.phone = realPhoneNumber; // <--- SAVING THE SCANNED NUMBER HERE
+              }
+
+              await supabase.from('profiles').update(updateData).eq('id', user.id);
+              
+              toast({ title: "Connected!", description: `Linked to +${realPhoneNumber || 'WhatsApp'}` });
               return; 
             }
 
-            // DETECT DISCONNECTED: If WAHA says 'STOPPED' but DB thinks 'scanning'
             if (realStatus === 'STOPPED' && dbStatus === 'scanning') {
-               // Don't auto-disconnect here to avoid flickering, but be aware
+               // Optional: Handle timeout
             }
           } 
         } catch (e) {
@@ -79,12 +93,10 @@ export default function ConnectPage() {
         }
       }
 
-      // Fallback: Use DB status if we didn't force an update above
       if (dbStatus) setStatus(dbStatus);
     }
     
     checkRealStatus();
-    // Poll every 5 seconds to catch the moment user scans the QR
     const interval = setInterval(checkRealStatus, 5000); 
     return () => clearInterval(interval);
   }, [user]);
@@ -107,16 +119,11 @@ export default function ConnectPage() {
       });
 
       if (!response.ok) {
-        // If we get 400/409, it might mean we are ALREADY connected
-        if (response.status === 400 || response.status === 409) {
-           // Double check connection
-           return; 
-        }
+        if (response.status === 400 || response.status === 409) return; 
         throw new Error('QR Fetch Failed');
       }
       
       const data = await response.json();
-      
       if (data?.data && data?.mimetype) {
          const src = data.data.startsWith('data:') 
            ? data.data 
@@ -138,13 +145,12 @@ export default function ConnectPage() {
     let timer: NodeJS.Timeout;
 
     if (status === 'scanning') {
-      // Only fetch if we don't have one, or timer hits 0
       if (!qrCode) fetchQR();
 
       timer = setInterval(() => {
         setTimeLeft((prev) => {
           if (prev <= 1) {
-            fetchQR(); // Refresh!
+            fetchQR(); 
             return REFRESH_INTERVAL;
           }
           return prev - 1;
@@ -167,7 +173,7 @@ export default function ConnectPage() {
 
     setIsLoading(true);
     try {
-      // 1. Check if session exists first (Prevent error)
+      // Check if already running
       const checkParams = new URLSearchParams({ all: 'true' });
       const checkRes = await fetch(`${WAHA_URL}/api/sessions?${checkParams}`, {
          headers: { 'X-Api-Key': API_KEY }
@@ -176,7 +182,6 @@ export default function ConnectPage() {
       const existing = sessions.find((s: any) => s.name === wahaSessionName);
 
       if (existing && existing.status === 'WORKING') {
-         // ALREADY LINKED!
          setStatus('connected');
          await supabase.from('profiles').update({ whatsapp_status: 'connected' }).eq('id', user?.id);
          toast({ title: "Already Linked", description: "System is already online." });
@@ -184,7 +189,7 @@ export default function ConnectPage() {
          return;
       }
 
-      // 2. Start Session (Create if missing, or start if stopped)
+      // Start Session
       await fetch(`${WAHA_URL}/api/sessions`, {
         method: 'POST',
         headers: { 
@@ -197,11 +202,10 @@ export default function ConnectPage() {
         })
       });
 
-      // 3. Update DB
       await supabase.from('profiles').update({ whatsapp_status: 'scanning' }).eq('id', user?.id);
       
       setStatus('scanning');
-      fetchQR(); // Get the first code immediately
+      fetchQR(); 
       
     } catch (error) {
       console.error("Start error:", error);
@@ -211,26 +215,22 @@ export default function ConnectPage() {
     }
   };
 
-  // TRUE CANCEL: Stops everything
   const handleCancel = async () => {
-    // 1. Immediate UI Update
     setStatus('disconnected');
     setQrCode(null);
     setTimeLeft(REFRESH_INTERVAL);
 
-    // 2. Update DB (Critical: Prevents auto-restart)
     if (user?.id) {
       await supabase.from('profiles').update({ whatsapp_status: 'disconnected' }).eq('id', user.id);
     }
 
-    // 3. Clean up WAHA Session (Stop the session so it doesn't linger)
     if (wahaSessionName) {
       try {
         await fetch(`${WAHA_URL}/api/sessions/${wahaSessionName}`, {
           method: 'DELETE',
           headers: { 'X-Api-Key': API_KEY }
         });
-      } catch (e) { console.warn("Delete session ignored", e); }
+      } catch (e) { }
     }
   };
 
@@ -252,7 +252,7 @@ export default function ConnectPage() {
           <CardContent className="p-0">
             <div className="grid md:grid-cols-2 min-h-[500px]">
               
-              {/* Left Side: Instructions */}
+              {/* Instructions */}
               <div className="p-8 space-y-8 flex flex-col justify-center bg-secondary/10 border-r border-white/5">
                 <div className="space-y-6">
                   <div className="flex items-start gap-4 p-4 rounded-lg bg-white/5 border border-white/10">
@@ -288,7 +288,7 @@ export default function ConnectPage() {
                 </div>
               </div>
 
-              {/* Right Side: Visual QR Display */}
+              {/* QR Display */}
               <div className="p-8 flex flex-col items-center justify-center bg-gradient-to-br from-black/40 to-black/60 relative">
                 
                 {status === 'connected' ? (
@@ -300,7 +300,6 @@ export default function ConnectPage() {
                       <h3 className="text-xl font-bold text-white">WhatsApp Linked</h3>
                       <p className="text-sm text-white/60 mt-1">Your AI receptionist is active.</p>
                     </div>
-                    {/* Disconnect calls the same Cancel logic to be safe */}
                     <Button variant="destructive" onClick={handleCancel} disabled={isLoading} className="w-full max-w-xs">
                       Disconnect
                     </Button>
@@ -308,7 +307,6 @@ export default function ConnectPage() {
                 ) : status === 'scanning' ? (
                   <div className="w-full max-w-xs space-y-6 animate-in fade-in slide-in-from-bottom-4">
                     
-                    {/* QR Card */}
                     <div className="relative group bg-white p-4 rounded-2xl shadow-xl border-4 border-white/10 mx-auto">
                       {qrCode ? (
                          <>
@@ -326,7 +324,6 @@ export default function ConnectPage() {
                       )}
                     </div>
 
-                    {/* Progress & Controls */}
                     <div className="space-y-3 bg-black/40 p-4 rounded-xl border border-white/5 backdrop-blur-md">
                       <div className="flex justify-between items-center text-xs text-white/70">
                         <span className="flex items-center gap-1.5">
@@ -352,7 +349,7 @@ export default function ConnectPage() {
                         <Button 
                           variant="ghost" 
                           size="sm" 
-                          onClick={handleCancel} // USING THE NEW CANCEL LOGIC
+                          onClick={handleCancel}
                           className="w-full text-xs h-8 text-red-400 hover:text-red-300 hover:bg-red-500/10"
                         >
                           <XCircle className="mr-2 h-3 w-3" />
