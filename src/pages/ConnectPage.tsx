@@ -201,12 +201,25 @@ export default function ConnectPage() {
 			const sessions = await checkRes.json();
 			const existing = sessions.find((s: any) => s.name === wahaSessionName);
 
-			if (existing && existing.status === 'WORKING') {
-				setStatus('connected');
-				await supabase.from('profiles').update({ whatsapp_status: 'connected' }).eq('id', user?.id);
-				toast({ title: "Already Linked", description: "System is already online." });
-				setIsLoading(false);
-				return;
+			if (existing) {
+				if (existing.status === 'WORKING') {
+					setStatus('connected');
+					await supabase.from('profiles').update({ whatsapp_status: 'connected' }).eq('id', user?.id);
+					toast({ title: "Already Linked", description: "System is already online." });
+					setIsLoading(false);
+					return;
+				} else {
+					// REUSE EXISTING SESSION (STOPPED or SCANNING)
+					// Optionally restart it if needed, but often just fetching QR is enough if it's running
+					// If it's stopped, we might need to start it, but let's assume we just enter scanning mode
+					// The user asked to "just restart it" on disconnect, so here we just pick it up.
+
+					await supabase.from('profiles').update({ whatsapp_status: 'scanning' }).eq('id', user?.id);
+					setStatus('scanning');
+					fetchQR();
+					setIsLoading(false);
+					return;
+				}
 			}
 
 			// Start Session
@@ -244,17 +257,20 @@ export default function ConnectPage() {
 			await supabase.from('profiles').update({
 				whatsapp_status: 'disconnected',
 				phone: null,
-				waha_session_name: null
+				// waha_session_name: null // <-- KEPT AS PER REQUEST
 			}).eq('id', user.id);
 		}
 
 		if (wahaSessionName) {
 			try {
-				await fetch(`${WAHA_URL}/api/sessions/${wahaSessionName}`, {
-					method: 'DELETE',
+				// LOGOUT instead of DELETE to keep session alive but disconnect phone
+				await fetch(`${WAHA_URL}/api/sessions/${wahaSessionName}/logout`, {
+					method: 'POST',
 					headers: { 'X-Api-Key': API_KEY }
 				});
-			} catch (e) { }
+			} catch (e) {
+				console.error("Logout failed", e);
+			}
 		}
 	};
 
