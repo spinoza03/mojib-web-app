@@ -137,11 +137,11 @@ const signUp = async (email: string, password: string, metaData?: { clinic_name:
       return false;
     }
 
-    if (profile.plan_type === 'starter') {
-      if (featureName === 'calendar-sync' || featureName === 'advanced-settings') {
-        return false;
-      }
-    }
+    // if (profile.plan_type === 'starter') {
+    //   if (featureName === 'calendar-sync' || featureName === 'advanced-settings') {
+    //     return false;
+    //   }
+    // }
 
     return true;
   };
