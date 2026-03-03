@@ -38,7 +38,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase, supabaseAdmin } from '@/integrations/supabase/client';
-import { DollarSign, Calendar, Loader2, Trash2, Users, Settings2, UserPlus, Bot, Wifi } from 'lucide-react';
+import { DollarSign, Calendar, Loader2, Trash2, Users, Settings2, UserPlus, Bot, Wifi, Play } from 'lucide-react';
 import { addDays, isAfter } from 'date-fns';
 
 const WAHA_URL = 'https://waha.mojib.online';
@@ -56,7 +56,8 @@ export default function AdminPage() {
 	const [createDialogOpen, setCreateDialogOpen] = useState(false);
 	const [selectedUser, setSelectedUser] = useState<ClinicWithEmail | null>(null);
 	const [userEmails, setUserEmails] = useState<Record<string, string>>({});
-	const [planSelection, setPlanSelection] = useState<'starter' | 'pro'>('starter');
+	const [planSelection, setPlanSelection] = useState<'starter' | 'pro'>('pro');
+	const [startingSessionId, setStartingSessionId] = useState<string | null>(null);
 	const [statusSelection, setStatusSelection] = useState<'trial' | 'active' | 'expired'>('trial');
 	const [trialEndDate, setTrialEndDate] = useState('');
 	const [trialExtension, setTrialExtension] = useState('');
@@ -251,6 +252,88 @@ export default function AdminPage() {
 		setNewSystemPrompt('');
 	};
 
+	// ---------------------------------------------------
+	// START / RESTART WAHA SESSION
+	// ---------------------------------------------------
+	const handleStartSession = async (clinic: ClinicWithEmail) => {
+		const sessionName = (clinic as any).waha_session_name;
+		if (!sessionName || sessionName === 'none') {
+			toast({ variant: 'destructive', title: 'No Session', description: 'This user has no WAHA session name configured.' });
+			return;
+		}
+
+		setStartingSessionId(clinic.id);
+		try {
+			// Check if session already exists
+			const checkParams = new URLSearchParams({ all: 'true' });
+			const checkRes = await fetch(`${WAHA_URL}/api/sessions?${checkParams}`, {
+				headers: { 'X-Api-Key': WAHA_API_KEY },
+			});
+			const sessions = await checkRes.json();
+			const existing = sessions.find((s: any) => s.name === sessionName);
+
+			if (existing) {
+				if (existing.status === 'WORKING') {
+					toast({ title: 'Already Running', description: `Session "${sessionName}" is already online.` });
+					return;
+				}
+				// Stop and delete existing before recreating
+				await fetch(`${WAHA_URL}/api/sessions/${sessionName}/stop`, {
+					method: 'POST',
+					headers: { 'X-Api-Key': WAHA_API_KEY },
+				}).catch(() => { });
+				await fetch(`${WAHA_URL}/api/sessions/${sessionName}`, {
+					method: 'DELETE',
+					headers: { 'X-Api-Key': WAHA_API_KEY },
+				}).catch(() => { });
+			}
+
+			// Create session with webhook config
+			const createRes = await fetch(`${WAHA_URL}/api/sessions`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					'X-Api-Key': WAHA_API_KEY,
+				},
+				body: JSON.stringify({
+					name: sessionName,
+					config: {
+						proxy: null,
+						debug: false,
+						webhooks: [
+							{
+								url: N8N_WEBHOOK_URL,
+								events: ['message'],
+								retries: {
+									delaySeconds: 40,
+									attempts: 1,
+									policy: 'linear',
+								},
+								customHeaders: null,
+							},
+						],
+					},
+				}),
+			});
+
+			if (!createRes.ok) {
+				const errText = await createRes.text();
+				throw new Error(errText);
+			}
+
+			// Update DB status to scanning
+			await supabase.from('profiles').update({ whatsapp_status: 'scanning' } as any).eq('id', clinic.id);
+
+			toast({ title: 'Session Started', description: `"${sessionName}" is now running. User can scan QR from their Connect page.` });
+			queryClient.invalidateQueries({ queryKey: ['allClinics'] });
+		} catch (err: any) {
+			console.error('[Admin] Start session error:', err);
+			toast({ variant: 'destructive', title: 'Session Failed', description: err.message || 'Could not start WAHA session.' });
+		} finally {
+			setStartingSessionId(null);
+		}
+	};
+
 	const handleCloseManage = () => {
 		setManageDialogOpen(false);
 		setSelectedUser(null);
@@ -259,7 +342,7 @@ export default function AdminPage() {
 
 	const handleOpenManage = (clinic: ClinicWithEmail) => {
 		setSelectedUser(clinic);
-		setPlanSelection((clinic.plan_type as 'starter' | 'pro') || 'starter');
+		setPlanSelection((clinic.plan_type as 'starter' | 'pro') || 'pro');
 		setStatusSelection((clinic.subscription_status as 'trial' | 'active' | 'expired') || 'trial');
 		setTrialEndDate(clinic.trial_ends_at ? clinic.trial_ends_at.slice(0, 10) : '');
 		setTrialExtension('');
@@ -472,7 +555,6 @@ export default function AdminPage() {
 												<TableHead className="text-foreground">Email</TableHead>
 												<TableHead className="text-foreground">Phone</TableHead>
 												<TableHead className="text-foreground">WAHA Session</TableHead>
-												<TableHead className="text-foreground">Plan</TableHead>
 												<TableHead className="text-foreground">Status</TableHead>
 												<TableHead className="text-foreground text-right">Actions</TableHead>
 											</TableRow>
@@ -495,9 +577,6 @@ export default function AdminPage() {
 															{(clinic as any).waha_session_name || 'N/A'}
 														</div>
 													</TableCell>
-													<TableCell className="text-muted-foreground">
-														{clinic.plan_type ? clinic.plan_type.toUpperCase() : 'N/A'}
-													</TableCell>
 													<TableCell>
 														<Badge
 															className={
@@ -513,6 +592,15 @@ export default function AdminPage() {
 													</TableCell>
 													<TableCell className="text-right">
 														<div className="flex items-center justify-end gap-2">
+															<Button
+																size="sm"
+																variant="outline"
+																onClick={() => handleStartSession(clinic)}
+																disabled={startingSessionId === clinic.id || !(clinic as any).waha_session_name || (clinic as any).waha_session_name === 'none'}
+																className="border-green-500/30 text-green-500 hover:bg-green-500/10"
+															>
+																{startingSessionId === clinic.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+															</Button>
 															<Button
 																size="sm"
 																variant="outline"
@@ -674,15 +762,7 @@ export default function AdminPage() {
 						<div className="grid gap-4 md:grid-cols-2">
 							<div className="space-y-2">
 								<Label>Plan</Label>
-								<Select value={planSelection} onValueChange={(value) => setPlanSelection(value as 'starter' | 'pro')}>
-									<SelectTrigger>
-										<SelectValue placeholder="Select plan" />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectItem value="starter">Starter (300 DH)</SelectItem>
-										<SelectItem value="pro">Pro (500 DH)</SelectItem>
-									</SelectContent>
-								</Select>
+								<Input value="Pro" disabled className="bg-secondary/30" />
 							</div>
 							<div className="space-y-2">
 								<Label>Status</Label>

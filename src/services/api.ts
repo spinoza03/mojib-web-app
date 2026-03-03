@@ -350,14 +350,10 @@ export async function fetchAdminStats(): Promise<AdminStats> {
 	}
 
 	const totalUsers = (profiles || []).length;
-	const planPrices: Record<Profile['plan_type'], number> = {
-		starter: 300,
-		pro: 500,
-	};
 
 	const totalRevenue = (profiles || []).reduce((sum, profile) => {
 		if (profile.subscription_status === 'active') {
-			return sum + planPrices[profile.plan_type];
+			return sum + 500; // Pro plan: 500 DH
 		}
 		return sum;
 	}, 0);
