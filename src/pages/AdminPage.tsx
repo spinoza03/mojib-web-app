@@ -41,7 +41,9 @@ import { supabase, supabaseAdmin } from '@/integrations/supabase/client';
 import { DollarSign, Calendar, Loader2, Trash2, Users, Settings2, UserPlus, Bot, Wifi } from 'lucide-react';
 import { addDays, isAfter } from 'date-fns';
 
-const WEBHOOK_URL = 'https://n8n.srv1310287.hstgr.cloud/webhook/whatsapp-webhook';
+const WAHA_URL = 'https://waha.mojib.online';
+const WAHA_API_KEY = 'my-secret-key';
+const N8N_WEBHOOK_URL = 'https://n8n.srv1310287.hstgr.cloud/webhook/whatsapp-webhook';
 
 export default function AdminPage() {
 	const { profile, user } = useAuth();
@@ -182,24 +184,46 @@ export default function AdminPage() {
 				}
 			}
 
-			// 4. Trigger n8n webhook to set up WAHA session
-			if (newWahaSessionName) {
+			// 4. Create WAHA session with the n8n webhook configured
+			if (newWahaSessionName && newWahaSessionName !== 'none') {
 				try {
-					await fetch(WEBHOOK_URL, {
+					const wahaResponse = await fetch(`${WAHA_URL}/api/sessions`, {
 						method: 'POST',
-						headers: { 'Content-Type': 'application/json' },
+						headers: {
+							'Content-Type': 'application/json',
+							'X-Api-Key': WAHA_API_KEY,
+						},
 						body: JSON.stringify({
-							action: 'create_session',
-							user_id: newUserId,
-							email: newEmail,
-							phone: newPhone,
-							clinic_name: newClinicName,
-							waha_session_name: newWahaSessionName,
-							system_prompt: newSystemPrompt,
+							name: newWahaSessionName,
+							config: {
+								proxy: null,
+								debug: false,
+								webhooks: [
+									{
+										url: N8N_WEBHOOK_URL,
+										events: ['message'],
+										retries: {
+											delaySeconds: 40,
+											attempts: 1,
+											policy: 'linear',
+										},
+										customHeaders: null,
+									},
+								],
+							},
 						}),
 					});
-				} catch (webhookErr) {
-					console.error('[Admin] Webhook trigger failed (non-blocking):', webhookErr);
+
+					if (!wahaResponse.ok) {
+						const errBody = await wahaResponse.text();
+						console.error('[Admin] WAHA session creation failed:', errBody);
+						toast({ variant: 'destructive', title: 'WAHA Warning', description: 'User created but WAHA session setup failed. You can retry from the Connect page.' });
+					} else {
+						console.log('[Admin] WAHA session created:', newWahaSessionName);
+					}
+				} catch (wahaErr) {
+					console.error('[Admin] WAHA API call failed (non-blocking):', wahaErr);
+					toast({ variant: 'destructive', title: 'WAHA Warning', description: 'User created but could not reach WAHA server.' });
 				}
 			}
 
