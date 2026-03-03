@@ -73,7 +73,7 @@ export default function SettingsPage() {
 			// B. Load Bot Config (FIXED: Using 'bot_configs')
 			const { data: botData, error } = await supabase
 				.from('bot_configs') // <--- FIXED PLURAL NAME
-				.select('system_prompt') 
+				.select('system_prompt')
 				.eq('user_id', user.id)
 				.maybeSingle();
 
@@ -132,7 +132,6 @@ export default function SettingsPage() {
 				.upsert({
 					user_id: user.id,
 					system_prompt: prompt,
-					updated_at: new Date().toISOString()
 				}, { onConflict: 'user_id' });
 
 			if (configError) throw configError;

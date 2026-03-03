@@ -176,7 +176,6 @@ export default function AdminPage() {
 				.upsert({
 					user_id: newUserId,
 					system_prompt: newSystemPrompt || '',
-					updated_at: new Date().toISOString(),
 				}, { onConflict: 'user_id' });
 
 			if (botError) {
