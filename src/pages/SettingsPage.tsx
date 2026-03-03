@@ -127,12 +127,23 @@ export default function SettingsPage() {
 			if (profileError) throw profileError;
 
 			// B. Update Bot Config (FIXED: Using 'bot_configs')
-			const { error: configError } = await supabase
-				.from('bot_configs') // <--- FIXED PLURAL NAME
-				.upsert({
-					user_id: user.id,
-					system_prompt: prompt,
-				}, { onConflict: 'user_id' });
+			const { data: existingBot } = await supabase
+				.from('bot_configs')
+				.select('user_id')
+				.eq('user_id', user.id)
+				.maybeSingle();
+
+			let configError;
+			if (existingBot) {
+				({ error: configError } = await supabase
+					.from('bot_configs')
+					.update({ system_prompt: prompt })
+					.eq('user_id', user.id));
+			} else {
+				({ error: configError } = await supabase
+					.from('bot_configs')
+					.insert({ user_id: user.id, system_prompt: prompt }));
+			}
 
 			if (configError) throw configError;
 

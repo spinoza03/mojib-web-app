@@ -173,10 +173,10 @@ export default function AdminPage() {
 			// 3. Insert bot_configs with system_prompt (same id as profiles)
 			const { error: botError } = await supabase
 				.from('bot_configs' as any)
-				.upsert({
+				.insert({
 					user_id: newUserId,
 					system_prompt: newSystemPrompt || '',
-				}, { onConflict: 'user_id' });
+				});
 
 			if (botError) {
 				console.error('[Admin] Error setting system_prompt:', botError);
