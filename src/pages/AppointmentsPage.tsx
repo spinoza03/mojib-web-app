@@ -13,7 +13,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Plus, Loader2, Phone, User, FileText, Trash2, Edit3, Calendar as CalendarIcon } from 'lucide-react';
+import { Plus, Loader2, Phone, User, FileText, Trash2, Edit3, Calendar as CalendarIcon, Clock } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { toDate, formatInTimeZone } from 'date-fns-tz';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth'; 
 import 'react-big-calendar/lib/css/react-big-calendar.css';
@@ -76,6 +78,21 @@ export default function AppointmentsPage() {
   });
 
   const [view, setView] = useState<View>(Views.MONTH);
+  
+  // Default timezone fallback if VPN is completely wrong or user prefers manual override
+  const browserIz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const popularTimezones = [
+    { value: 'UTC', label: 'UTC (GMT+0)' },
+    { value: 'Europe/Paris', label: 'Paris (CET/CEST)' },
+    { value: 'Africa/Casablanca', label: 'Casablanca (Morocco)' },
+    { value: 'America/New_York', label: 'New York (EST/EDT)' },
+    { value: 'Asia/Dubai', label: 'Dubai (GST)' },
+    { value: browserIz, label: `Local (${browserIz})` }
+  ];
+  
+  // Try to use browser Iz if it exists in the list to avoid duplicate entries, 
+  // otherwise we can just inject it. But for ease, we start with the assumed local.
+  const [selectedTimzeone, setSelectedTimezone] = useState(browserIz || 'Africa/Casablanca');
 
   // 1. FIXED QUERY: Filter by doctor_id
   const { data: events, isLoading } = useQuery({
@@ -94,17 +111,29 @@ export default function AppointmentsPage() {
         throw error;
       }
 
-      return data.map((apt: any) => ({
-        id: apt.id,
-        title: apt.patient_name || 'Unknown',
-        start: new Date(apt.start_time),
-        end: new Date(apt.end_time),
-        resource: {
-          phone: apt.patient_phone,
-          notes: apt.notes,
-          status: apt.status,
-        },
-      })) as AppointmentEvent[];
+      return data.map((apt: any) => {
+        // apt.start_time is UTC from db. 
+        // We need to convert it visually into 'selectedTimzeone' objects for react-big-calendar
+        
+        // date-fns-tz trick: We read the UTC string, convert to destination timezone string, 
+        // and parse it back to a naive Date object so the calendar renders it exactly at that visual hour.
+        const startTz = toDate(apt.start_time, { timeZone: selectedTimzeone });
+        const endTz   = toDate(apt.end_time,   { timeZone: selectedTimzeone });
+        
+        return {
+          id: apt.id,
+          title: apt.patient_name || 'Unknown',
+          start: startTz,
+          end: endTz,
+          resource: {
+            phone: apt.patient_phone,
+            notes: apt.notes,
+            status: apt.status,
+            rawStart: apt.start_time, // keep real UTC strings for DB updates
+            rawEnd: apt.end_time
+          },
+        };
+      }) as AppointmentEvent[];
     },
     enabled: !!user?.id, // Don't run query until user is loaded
   });
@@ -144,8 +173,9 @@ export default function AppointmentsPage() {
     setSelectedEvent(event);
     setIsViewDialogOpen(true);
     
-    const dateStr = format(event.start, 'yyyy-MM-dd');
-    const timeStr = format(event.start, 'HH:mm');
+    // Convert back from the visual naive Date back into the selected timezone string representation for formatting
+    const dateStr = formatInTimeZone(event.resource.rawStart, selectedTimzeone, 'yyyy-MM-dd');
+    const timeStr = formatInTimeZone(event.resource.rawStart, selectedTimzeone, 'HH:mm');
     setEditAppointment({
       id: event.id,
       patientName: event.title,
@@ -233,9 +263,21 @@ export default function AppointmentsPage() {
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-foreground">Appointments</h1>
             <p className="text-muted-foreground">Manage your clinic's schedule.</p>
-            <div className="mt-1 flex items-center gap-2 text-sm text-primary font-medium bg-primary/10 px-3 py-1 rounded-full w-fit">
-              <CalendarIcon className="h-4 w-4" />
-              Timezone: {localTimezone}
+            <div className="mt-2 flex flex-col sm:flex-row sm:items-center gap-2">
+               <span className="text-sm font-medium text-muted-foreground">Timezone:</span>
+               <Select value={selectedTimzeone} onValueChange={setSelectedTimezone}>
+                 <SelectTrigger className="w-[220px] h-8 text-xs font-semibold">
+                    <SelectValue placeholder="Select timezone" />
+                 </SelectTrigger>
+                 <SelectContent>
+                   {popularTimezones.map(tz => (
+                      <SelectItem key={tz.value} value={tz.value}>{tz.label}</SelectItem>
+                   ))}
+                   {!popularTimezones.find(t => t.value === browserIz) && (
+                      <SelectItem value={browserIz}>Local ({browserIz})</SelectItem>
+                   )}
+                 </SelectContent>
+               </Select>
             </div>
           </div>
           <Button 
@@ -271,12 +313,22 @@ export default function AppointmentsPage() {
                 resizable={false}
                 draggableAccessor={() => true}
                 popup={true}
+                components={{
+                  event: ({ event }) => (
+                    <div className="flex flex-col h-full items-start justify-center px-1 overflow-hidden pointer-events-none">
+                      <span className="font-bold text-xs truncate w-full">
+                        {formatInTimeZone(event.resource.rawStart, selectedTimzeone, 'HH:mm')} - {event.title}
+                      </span>
+                    </div>
+                  )
+                }}
                 eventPropGetter={(event: AppointmentEvent) => ({
                   style: {
                     backgroundColor: event.resource.status === 'confirmed' ? '#ef4444' : '#22c55e',
                     color: 'white',
                     borderRadius: '4px',
                     border: 'none',
+                    padding: '2px',
                   },
                 })}
               />
@@ -289,6 +341,12 @@ export default function AppointmentsPage() {
           <DialogContent className="glass-card">
             <DialogHeader><DialogTitle>{selectedEvent?.title}</DialogTitle></DialogHeader>
             <div className="space-y-4 py-4">
+              <div className="flex items-center gap-3">
+                <Clock className="h-5 w-5 text-muted-foreground" />
+                <span className="font-medium">
+                  {selectedEvent ? formatInTimeZone(selectedEvent.resource.rawStart, selectedTimzeone, 'PPP p') : ''}
+                </span>
+              </div>
               <div className="flex items-center gap-3">
                 <User className="h-5 w-5 text-muted-foreground" />
                 <span>{selectedEvent?.title}</span>
