@@ -162,9 +162,14 @@ export default function AppointmentsPage() {
     const confirmDelete = window.confirm("Are you sure you want to delete this appointment?");
     if (!confirmDelete) return;
 
-    const { error } = await supabase.from('appointments').delete().eq('id', selectedEvent.id);
-    if (error) toast({ variant: 'destructive', title: 'Error', description: error.message });
-    else {
+    // SECURITY DIAGNOSIS: We append .select() to see if RLS actually allowed the delete.
+    const { data, error } = await supabase.from('appointments').delete().eq('id', selectedEvent.id).select();
+    
+    if (error) {
+      toast({ variant: 'destructive', title: 'Database Error', description: error.message });
+    } else if (!data || data.length === 0) {
+      toast({ variant: 'destructive', title: 'Delete Failed (RLS)', description: 'Your Supabase database blocked the deletion due to Row-Level Security. Please update your DELETE policy to check for doctor_id.' });
+    } else {
       toast({ title: 'Deleted', description: 'Appointment has been removed.' });
       setIsViewDialogOpen(false);
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
@@ -181,17 +186,21 @@ export default function AppointmentsPage() {
     const startDateTime = new Date(`${editAppointment.date}T${editAppointment.time}`);
     const endDateTime = new Date(startDateTime.getTime() + 30 * 60000); 
 
-    const { error } = await supabase.from('appointments').update({
+    // SECURITY DIAGNOSIS: We append .select() to ensure RLS permitted the update.
+    const { data, error } = await supabase.from('appointments').update({
         patient_name: editAppointment.patientName,
         patient_phone: editAppointment.phone,
         start_time: startDateTime.toISOString(),
         end_time: endDateTime.toISOString(),
         notes: editAppointment.notes,
         status: editAppointment.status
-      }).eq('id', editAppointment.id);
+      }).eq('id', editAppointment.id).select();
 
-    if (error) toast({ variant: 'destructive', title: 'Error', description: error.message });
-    else {
+    if (error) {
+      toast({ variant: 'destructive', title: 'Database Error', description: error.message });
+    } else if (!data || data.length === 0) {
+      toast({ variant: 'destructive', title: 'Update Failed (RLS)', description: 'Your Supabase database blocked the update due to Row-Level Security. Please update your UPDATE policy to check for doctor_id.' });
+    } else {
       toast({ title: 'Updated', description: 'Appointment updated successfully.' });
       setIsEditDialogOpen(false);
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
@@ -199,17 +208,23 @@ export default function AppointmentsPage() {
   };
 
   const onEventDrop = async ({ event, start, end }: any) => {
-    const { error } = await supabase.from('appointments').update({
+    // SECURITY DIAGNOSIS: Append .select() for drag-and-drop as well.
+    const { data, error } = await supabase.from('appointments').update({
         start_time: start.toISOString(),
         end_time: end.toISOString()
-      }).eq('id', event.id);
+      }).eq('id', event.id).select();
 
-    if (error) toast({ variant: 'destructive', title: 'Error', description: error.message });
-    else {
+    if (error) {
+      toast({ variant: 'destructive', title: 'Database Error', description: error.message });
+    } else if (!data || data.length === 0) {
+       toast({ variant: 'destructive', title: 'Drag & Drop Failed (RLS)', description: 'Row-Level Security blocked this move. Update your UPDATE policy.' });
+    } else {
       toast({ title: 'Moved', description: 'Appointment time updated.' });
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
     }
   };
+
+  const localTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   return (
     <AppLayout>
@@ -218,6 +233,10 @@ export default function AppointmentsPage() {
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-foreground">Appointments</h1>
             <p className="text-muted-foreground">Manage your clinic's schedule.</p>
+            <div className="mt-1 flex items-center gap-2 text-sm text-primary font-medium bg-primary/10 px-3 py-1 rounded-full w-fit">
+              <CalendarIcon className="h-4 w-4" />
+              Timezone: {localTimezone}
+            </div>
           </div>
           <Button 
             className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
@@ -251,6 +270,7 @@ export default function AppointmentsPage() {
                 onEventDrop={onEventDrop}
                 resizable={false}
                 draggableAccessor={() => true}
+                popup={true}
                 eventPropGetter={(event: AppointmentEvent) => ({
                   style: {
                     backgroundColor: event.resource.status === 'confirmed' ? '#ef4444' : '#22c55e',
