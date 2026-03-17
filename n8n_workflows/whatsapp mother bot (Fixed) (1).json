@@ -1,0 +1,686 @@
+{
+  "name": "whatsapp mother bot (Fixed)",
+  "nodes": [
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.body.event }}",
+              "rightValue": "message",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "0abd986c-7d2a-4bf4-8bd4-57c16e2b98c1",
+      "name": "Check if Message",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -560,
+        1120
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://waha.mojib.online/api/{{ $('WAHA Webhook').item.json.body.session }}/chats/{{ $('WAHA Webhook').item.json.body.payload.from }}/messages?limit=10",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "my-secret-key"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        48,
+        1104
+      ],
+      "id": "209d1bcf-6a4e-405d-9e40-92b5fdfc9926",
+      "name": "HTTP Request1"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "manager-webhook",
+        "options": {}
+      },
+      "id": "ca835338-c5df-4b85-b34a-98857c33eeac",
+      "name": "WAHA Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -752,
+        1120
+      ],
+      "webhookId": "55d3f97f-e8f2-4400-85cc-5d22bbaf96f5"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -144,
+        1104
+      ],
+      "id": "20b63cb2-86cb-411c-a705-b84cf252fc4a",
+      "name": "Wait",
+      "webhookId": "39c0d105-543b-4502-bb9c-3cf2ec3fb752"
+    },
+    {
+      "parameters": {
+        "jsCode": "const messages = items.map(item => item.json);\nconst triggerId = $('WAHA Webhook').first().json.body.payload.id;\nconst latestMessageId = messages[0]?.id?._serialized || messages[0]?.id;\nconst cleanLatest = latestMessageId.includes('_') ? latestMessageId.split('_').pop() : latestMessageId;\nconst cleanTrigger = triggerId.includes('_') ? triggerId.split('_').pop() : triggerId;\n\nif (cleanLatest !== cleanTrigger) { return []; }\n\nconst combinedText = messages.filter(m => m.fromMe === false).slice(0, 5).reverse().map(m => m.body).join(\"\\n\");\n\nitems[0].json.final_input = combinedText;\nreturn [items[0]];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        256,
+        1104
+      ],
+      "id": "47a4d014-5b3b-4882-90f5-11a5be7a9135",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "id-1",
+              "name": "wahaApiUrl",
+              "value": "https://your-waha-instance.com/api",
+              "type": "string"
+            },
+            {
+              "id": "id-2",
+              "name": "wahaApiKey",
+              "value": "my-secret-key",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "f4ff339f-dbbd-4950-b315-d520adb41fe8",
+      "name": "Workflow Configuration",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        464,
+        1104
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const webhookData = $('WAHA Webhook').item.json;\nconst payload = webhookData.body.payload;\nif (!payload || !payload.from || payload.fromMe) return [];\n\nconst combinedText = $json.final_input || payload.body || \"\";\nconst phone = payload.from;\nlet mediaPath = null;\n\nif (payload.media?.url) {\n  const fullUrl = payload.media.url;\n  const pathStart = fullUrl.indexOf('/api/');\n  if (pathStart !== -1) mediaPath = fullUrl.substring(pathStart);\n}\n\nlet isAudio = false;\nlet messageText = combinedText;\n\nif (payload.hasMedia) {\n  const mediaType = payload._data?.type;\n  if (mediaType === 'ptt' || mediaType === 'audio') {\n    isAudio = true;\n    messageText = \"[AUDIO]\"; \n  } else if (mediaType === 'image') {\n    messageText = combinedText !== \"\" ? combinedText : \"[IMAGE]\";\n  } else if (mediaType === 'video') {\n    messageText = \"[VIDEO]\";\n  }\n}\n\nitems[0].json = { phone, messageText, isAudio, mediaPath, mediaType: payload._data?.type, mimetype: payload.media?.mimetype, messageId: payload.id };\nreturn [items[0]];"
+      },
+      "id": "51317a18-b6c9-45d9-b6d2-9f95e622a41a",
+      "name": "Parse WAHA Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        656,
+        1104
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "id-1",
+              "leftValue": "={{ $json.isAudio }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c481005e-1353-4367-98be-0c9869cec499",
+      "name": "Check if Audio",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        864,
+        1104
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://waha.mojib.online{{ $('Parse WAHA Payload').item.json.mediaPath }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "89279c15-2122-45a3-9eea-b0afaac8513a",
+      "name": "Download Audio File",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1056,
+        976
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "PJnbnTzF6E24UhIs",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "operation": "transcribe",
+        "options": {}
+      },
+      "id": "5fdeb50a-7d81-40f5-a432-960ed7310d03",
+      "name": "Transcribe Audio (Whisper)",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        1264,
+        976
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "k1oslmajw2n6dEaE",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Parse WAHA Payload').item.json.messageText }}",
+        "options": {
+          "systemMessage": "\n🔹 ROLE & IDENTITY:\nYou are 'Anass', the expert Medical Sales Manager for 'Mojib' (the first AI Moroccan platform for smart clinic, and beauty center management).\n\nLanguage: You speak ONLY in Natural Moroccan Darija (unless the doctor speaks French, then switch to French).\n\nTone: Polite, Respectful, Friendly/Smiling, but Professional. You are a business partner helping them upgrade their clinic, not a robot.\n\nTerminology: NEVER say \"Bot\". ALWAYS say \"L-Agent\", \"L-Assistant\", or \"السيكريتيرة الذكية\".\n\nAnti-Fusha Guardrail: NEVER use words like \"هل\", \"نعم\", \"حسناً\", \"سوف\", \"عفوا\", \"أرجوك\". Use \"واش\", \"أه\", \"واخا\", \"صافي\", \"غادي\", \"عافاك\".\n\nPacing (CRITICAL): Keep your messages short (maximum 3-4 sentences). NEVER ask more than ONE question per message. Wait for the user to answer before asking the next question.\n\n🌍 THE GOLDEN RULE:\nWhenever you explain a benefit, price, or feature, ALWAYS end your turn by proposing the 7-Day Free Trial (\"نجربوه 7 أيام فابور\") or a Quick Phone Call/Meeting with the team.\n\n📚 KNOWLEDGE BASE & FAQ (How to answer their questions):\n\nWhat is Mojib? We create AI Assistants specifically for medical , dental clinics and beauty centers.\n\nCore Benefits: Responds instantly 24/7, books appointments automatically, answers repetitive patient questions (or clients if it a beauty center).\n\n💬 FAQ & SCRIPTED RESPONSES (Use these templates naturally):\n\n1. \"I already have a secretary\" (عندي سيكريتيرة):\n\"تبارك الله، L-Agent ديالنا ماجاش باش يحيد السيكريتيرة، بالعكس! جا باش يعاونها. كيجاوب فاش كتكون هي مشغولة مع المرضى فالعيادة(or clients in salon)، وكيجاوب بالليل. هكا كتركز هي على الخدمة لداخل، وما كضيع حتى مكالمة.\"\n\n2. \"How do we connect it to WhatsApp?\" (كيفاش غنربطو الواتساب؟ / Onboarding):\n\"طريقة ساهلة بزاف دكتور. بحال ملي كتخدم بـ WhatsApp Web فبيسي. كنعطيوك واحد الكود QR، كتسكانيه بالتليفون ديال العيادة، وها هو L-Assistant خدام فالبلاصة بلا ماتيليشارجي حتى شي تطبيق جديد.\"\n\n3. \"Where do I see the appointments?\" (كيفاش غانشوف المواعيد؟):\n\"كنعطيوك واحد المنصة (Dashboard) ساهلة خاصة بالعيادة ديالك. كتدخل ليها نتا ولا السيكريتيرة، وكيبان ليك الأجندة (Calendar) فيها ڭاع المواعيد مقادين بالسمية، الوقت، والسبب ديال الزيارة.\"\n\n4. \"What is the Guarantee / What if I don't like it?\" (شنو الضمانة؟):\n\"الضمانة ديالنا هي التجربة! كنعطيوك 7 أيام فابور باش تشوف السيستيم بعينيك فعيادتك. ماعجبكش الحال؟ كنحبسوه وما كتخلص والو. وماعندناش التزامات (Sans engagement)، تقدر تحبس فاش بغيتي.\"\n\n5. \"How long does it take to start?\" (شحال ديال الوقت باش نبداو؟):\n\"مور ما كناخدو من عندك المعلومات بحال أوقات العمل والأثمنة، الفريق التقني ديالنا كيقاد ليك السيستيم فـ 24 حتى 48 ساعة كأقصى حد. كنسكانو الكود، وها هو خدام.\"\n\n6. \"What if the patient asks a medical/complex question?\" (إلا سولو شي حاجة طبية؟):\n\"L-Agent مبرمج باش يجاوب غير على داكشي لي عطيناه (المواعيد، العنوان، الأسئلة العادية). يلا سولو المريض شي حاجة طبية معقدة، كيقول ليه: 'غادي نخلي السيكريتيرة تجاوبك فهاد الموضوع باش تفيدك كتر'، وكيدوز ليها الخط.\"\n\n7. \"How much is it?\" (شحال الثمن؟):\n\"التمن ديال الاشتراك هو 499 درهم فالشهر، وعندنا 1000 درهم ديال التركيب والكونفيڭراسيون (Setup) كتخلص غير مرة وحدة فالبداية. هاد التمن راه قل بـ 80% من خلصة سيكريتيرة.\"\n\n8. \"It is expensive\" (غالي / ROI Argument)(you can use another script if it's not a clinic based on the costumer needs):\n\"فهمتك دكتور، ولكن هادا استثمار. غير مريض واحد (مثلاً بغا يدير Implant ولا تقويم الأسنان) جاوْبتو السيكريتيرة الذكية فاش كانت العيادة مسدودة وحجزات ليه موعد، راه كيرجع ليك تمن العام كامل ديال هاد الخدمة.\"\n\n🔄 CONVERSATION FLOW:\n\n🔹 PHASE 1: THE SPEED HOOK (Mandatory Start)\nStart exactly with this:\n\"شفتي شحال دغيا جاوبت؟ ⚡ تخايل كون كان هادا شخص كيتاصل بالعيادة مع 2 ديال الليل ولا نهار الأحد... شكون كان غايجاوبو؟\nL-Assistant ديالنا 'Mojib' كيدير هادشي: كيجاوب 24/7، كيشد المواعيد، وكيجاوب على الأسئلة .\nأجي نجربوه  7 أيام فابور باش تشوف بعينيك. واش متفق؟\"\n\n!KEEP IN  MIND ALWAYS \"ah\" means yes\n\n🔹 PHASE 2: THE DISCOVERY (Gathering Lead Info)\nIf they show interest, say: \"مزيان! على بركة الله. باش نوجدو ليك هاد التجربة، غنحتاج غير بعض المعلومات.\"\nAsk these naturally, ONE AT A TIME:\n\n\"شنو سمية العيادة (centre if it's a beauty center) والسمية ديالك أ دكتور؟\" (Wait for answer)\n\n\"أشمن مدينة كاينين؟\" (Wait for answer)\n\n\"شنو هو الرقم لي نقدرو نتاصلو بيك فيه باش الفريق التقني يقاد ليك الحساب؟\" (Wait for answer)\n\n🔹 PHASE 3: THE PITCH & ACTION\nOnce you have the City, Clinic Name, and Phone number, push for the meeting:\n\"تبارك الله عليك. السيستيم ديالنا كيتقاد على حساب كل عيادة (أوقات العمل، الأثمنة، الخ). واش يجي معاك نبرمجو واحد المكالمة (Appel) مع الفريق التقني ديالنا باش يشرحو ليك كتر ويطلقو ليك التجربة المجانية؟ فوقاش يجي معاك الوقت؟\"\n\n🔹 PHASE 4: CALLING THE ADMIN TOOL\nOnce the user agrees to a time:\n\nSAY: \"صافي واخا، قيدت المعلومات ديالك. الفريق ديالنا غايتاصل بيك فـ [Time] باش نفعلو ليك الحساب ⏳.\"\n\nCALL TOOL: Trigger notify_admin immediately. Send a clean JSON object. If a detail is missing, write \"Not provided\".\n\n✅ CORRECT notify_admin EXAMPLE:\n{\n\"clinic_name\": \"عيادة الشفاء\",\n\"doctor_name\": \"د. كريم\",\n\"phone\": \"0612345678\",\n\"city\": \"الدار البيضاء\",\n\"meeting_time\": \"غدا مع الـ 3 ديال العشية\",\n\"notes\": \"سول على طريقة ربط الواتساب وعجباتو الفكرة. بغا يجرب 7 أيام.\"\n}\n\n🔹 PHASE 5: HANDOFF\nAfter the tool call is successful, end warmly:\n\"صافي كولشي هو هادا! راه صيفطت المعلومات لسي إلياس والفريق ديالو، غايكونو معاك فالموعد إن شاء الله. نهارك مبروك دكتور! إذا عندك أي سؤال أخر أنا هنا.\"\nCRITICAL: don't answer anything doesen't  related to our service or answer someone how to build a bot from scratch"
+        }
+      },
+      "id": "f8924077-2e63-45f8-9c82-0b9216180493",
+      "name": "Sales Manager Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1504,
+        1120
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list",
+          "cachedResultName": "gpt-4o"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "id": "3f54ced9-441d-40fb-ac6e-6b1073b859a8",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        1440,
+        1344
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "k1oslmajw2n6dEaE",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Parse WAHA Payload').item.json.phone }}",
+        "contextWindowLength": 30
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.3,
+      "position": [
+        1568,
+        1376
+      ],
+      "id": "657f96ff-91c1-4530-b3fc-d1bc9bd97554",
+      "name": "Postgres Chat Memory",
+      "credentials": {
+        "postgres": {
+          "id": "8oH3Jkbbsel8stf6",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "WgzH6TMTn0PNgbcJNhmb_",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/WgzH6TMTn0PNgbcJNhmb_",
+          "cachedResultName": "notify_admin_custom_lead"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        1808,
+        1472
+      ],
+      "id": "8edaa683-e89c-4b1c-b700-2a8c594481b4",
+      "name": "Call 'notify_admin_custom_lead'"
+    },
+    {
+      "parameters": {
+        "description": "Register a new clinic with their name and email address. Use this tool once you have collected both the clinic name and email from the prospect.",
+        "workflowId": {
+          "__rl": true,
+          "value": "J8lBaYKgq7K1A0AL49KZ3",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/J8lBaYKgq7K1A0AL49KZ3",
+          "cachedResultName": "Tool: Register Clinic"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "id": "79a7e043-fcff-47b4-97b7-99ebf2354f93",
+      "name": "Register Clinic Tool",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        1664,
+        1440
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "Chatting",
+        "operation": "Send Text",
+        "session": "main_session",
+        "chatId": "={{ $('Parse WAHA Payload').first().json.phone }}",
+        "text": "={{ $json.output }}",
+        "requestOptions": {}
+      },
+      "type": "n8n-nodes-waha.WAHA",
+      "typeVersion": 202411,
+      "position": [
+        1920,
+        1104
+      ],
+      "id": "651bcc7b-1551-48e0-b755-860745eafe51",
+      "name": "Send WhatsApp Reply",
+      "credentials": {
+        "wahaApi": {
+          "id": "EmAbk1FUNSMFh2qi",
+          "name": "WAHA account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "Chatting",
+        "operation": "Start Typing",
+        "session": "={{ $('WAHA Webhook').item.json.body.session }}",
+        "chatId": "={{ $('WAHA Webhook').item.json.body.payload.from }}",
+        "requestOptions": {}
+      },
+      "type": "n8n-nodes-waha.WAHA",
+      "typeVersion": 202411,
+      "position": [
+        -352,
+        1024
+      ],
+      "id": "3510835c-e6fa-497f-aded-c24ddd235051",
+      "name": "Start Typing",
+      "credentials": {
+        "wahaApi": {
+          "id": "EmAbk1FUNSMFh2qi",
+          "name": "WAHA account"
+        }
+      }
+    }
+  ],
+  "pinData": {
+    "WAHA Webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "n8n.srv1310287.hstgr.cloud",
+            "user-agent": "WAHA/2026.2.1",
+            "content-length": "1180",
+            "accept": "application/json, text/plain, */*",
+            "accept-encoding": "gzip, compress, deflate, br",
+            "content-type": "application/json",
+            "x-forwarded-for": "172.18.0.1",
+            "x-forwarded-host": "n8n.srv1310287.hstgr.cloud",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "3b5e72c476f1",
+            "x-real-ip": "172.18.0.1",
+            "x-webhook-request-id": "ryigo6mmk4i0v7",
+            "x-webhook-timestamp": "1773117704418"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "id": "evt_01kkb0t272pej4417yxjhf4hde",
+            "timestamp": 1773117704418,
+            "event": "message",
+            "session": "main_session",
+            "metadata": {},
+            "me": {
+              "id": "447749343372@c.us",
+              "pushName": "Mojib",
+              "lid": "179049234190361@lid"
+            },
+            "payload": {
+              "id": "false_212608301414@c.us_3A4A08A6DEB657476D6C",
+              "timestamp": 1773117704,
+              "from": "212608301414@c.us",
+              "fromMe": false,
+              "source": "app",
+              "body": "Ahhh",
+              "hasMedia": false,
+              "media": null,
+              "ack": 2,
+              "ackName": "DEVICE",
+              "location": null,
+              "vCards": null,
+              "replyTo": null,
+              "_data": {
+                "key": {
+                  "remoteJid": "212608301414@s.whatsapp.net",
+                  "remoteJidAlt": "224502302662716@lid",
+                  "fromMe": false,
+                  "id": "3A4A08A6DEB657476D6C",
+                  "participant": "",
+                  "addressingMode": "pn"
+                },
+                "messageTimestamp": 1773117704,
+                "pushName": "212608301414",
+                "broadcast": false,
+                "message": {
+                  "conversation": "Ahhh",
+                  "messageContextInfo": {
+                    "deviceListMetadata": {
+                      "senderKeyHash": "VeW1jaCt36q72w==",
+                      "senderTimestamp": "1772764990",
+                      "recipientKeyHash": "WKUtCRS8LrldUg==",
+                      "recipientTimestamp": "1772032693"
+                    },
+                    "deviceListMetadataVersion": 2,
+                    "messageSecret": "cS/3tRtz38W6UcCoPL1G1H66wetkzqAU6rs6cddxJZE="
+                  }
+                },
+                "status": 3
+              }
+            },
+            "engine": "NOWEB",
+            "environment": {
+              "version": "2026.2.1",
+              "engine": "NOWEB",
+              "tier": "PLUS",
+              "browser": null,
+              "platform": "linux/x64",
+              "worker": {
+                "id": null
+              }
+            }
+          },
+          "webhookUrl": "https://n8n.srv1310287.hstgr.cloud/webhook/manager-webhook",
+          "executionMode": "production"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Check if Message": {
+      "main": [
+        [
+          {
+            "node": "Start Typing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WAHA Webhook": {
+      "main": [
+        [
+          {
+            "node": "Check if Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Workflow Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workflow Configuration": {
+      "main": [
+        [
+          {
+            "node": "Parse WAHA Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse WAHA Payload": {
+      "main": [
+        [
+          {
+            "node": "Check if Audio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check if Audio": {
+      "main": [
+        [
+          {
+            "node": "Download Audio File",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sales Manager Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Audio File": {
+      "main": [
+        [
+          {
+            "node": "Transcribe Audio (Whisper)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcribe Audio (Whisper)": {
+      "main": [
+        [
+          {
+            "node": "Sales Manager Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sales Manager Agent": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Sales Manager Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Chat Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Sales Manager Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'notify_admin_custom_lead'": {
+      "ai_tool": [
+        [
+          {
+            "node": "Sales Manager Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Register Clinic Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Sales Manager Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start Typing": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "41fedb2a-d8e8-4924-8325-d7d8513cbe79",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "a3cadb436088770433e3770927a2ced14a7e5c174d43411f4617dd3fbcdf1b47"
+  },
+  "id": "L1ayGEQPfJYo4ppv497mr",
+  "tags": []
+}

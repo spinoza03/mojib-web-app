@@ -44,6 +44,42 @@ export const TOOLS = [
     }
 ];
 
+export const DOCTOR_TOOLS = [
+    {
+        type: "function" as const,
+        function: {
+            name: "check_availability",
+            description: "Use this tool to fetch a list of already booked (busy) appointment times for a doctor on a specific date. You MUST provide the date in YYYY-MM-DD format and the doctor_id. Use the results to identify gaps in the schedule for the patient.",
+            parameters: {
+                type: "object",
+                properties: {
+                    doctor_id: { type: "string" },
+                    start_date_time: { type: "string", description: "Format: YYYY-MM-DD 00:00:00+00" }
+                },
+                required: ["doctor_id", "start_date_time"]
+            }
+        }
+    },
+    {
+        type: "function" as const,
+        function: {
+            name: "book_appointment",
+            description: "Use this tool ONLY after the patient has clearly confirmed a specific time slot. It creates a new appointment in the database.",
+            parameters: {
+                type: "object",
+                properties: {
+                    doctor_id: { type: "string" },
+                    start_date_time: { type: "string", description: "Format: YYYY-MM-DD HH:mm:ss+00" },
+                    patient_phone: { type: "string" },
+                    patient_name: { type: "string" },
+                    reason: { type: "string" }
+                },
+                required: ["doctor_id", "start_date_time", "patient_phone", "patient_name", "reason"]
+            }
+        }
+    }
+];
+
 export async function transcribeAudio(audioFilePath: string): Promise<string | null> {
     try {
         const response = await openai.audio.transcriptions.create({
@@ -61,7 +97,8 @@ export async function generateResponse(
     systemPrompt: string,
     chatHistory: any[],
     newMessage: string,
-    imageUrl?: string
+    imageUrl?: string,
+    toolsList: any[] = TOOLS
 ) {
     const messages: any[] = [
         { role: 'system', content: systemPrompt }
@@ -97,7 +134,7 @@ export async function generateResponse(
         const response = await openai.chat.completions.create({
             model: "gpt-4o-mini", // Using GPT-4o-mini as requested
             messages: messages,
-            tools: TOOLS,
+            tools: toolsList,
             tool_choice: "auto",
         });
 
@@ -107,4 +144,23 @@ export async function generateResponse(
         console.error('[OpenAI] Error generating response:', error);
         return null;
     }
+}
+
+export async function generateDoctorResponse(
+    systemPrompt: string,
+    chatHistory: any[],
+    newMessage: string,
+    imageUrl?: string
+) {
+    const now = new Date();
+    // Use proper zero-padded formats 
+    const dd = String(now.getDate()).padStart(2, '0');
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const yyyy = now.getFullYear();
+    
+    const temporalContext = `[TEMPORAL CONTEXT] Today's Date: ${yyyy}-${mm}-${dd} (YYYY-MM-DD) Today's Day: ${now.toLocaleDateString('en-US', {weekday: 'long'})} Current Time: ${now.toLocaleTimeString('en-GB', {hour: '2-digit', minute:'2-digit'})}\n`;
+    
+    const fullSystemPrompt = temporalContext + systemPrompt;
+    
+    return generateResponse(fullSystemPrompt, chatHistory, newMessage, imageUrl, DOCTOR_TOOLS);
 }

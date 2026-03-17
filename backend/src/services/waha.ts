@@ -18,10 +18,10 @@ const client = axios.create({
     }
 });
 
-export async function sendText(chatId: string, text: string) {
+export async function sendText(chatId: string, text: string, sessionName?: string) {
     try {
         await client.post('/api/sendText', {
-            session: WAHA_SESSION,
+            session: sessionName || WAHA_SESSION,
             chatId: chatId,
             text: text
         });
@@ -30,10 +30,10 @@ export async function sendText(chatId: string, text: string) {
     }
 }
 
-export async function startTyping(chatId: string) {
+export async function startTyping(chatId: string, sessionName?: string) {
     try {
         await client.post('/api/startTyping', {
-            session: WAHA_SESSION,
+            session: sessionName || WAHA_SESSION,
             chatId: chatId
         });
     } catch (error) {

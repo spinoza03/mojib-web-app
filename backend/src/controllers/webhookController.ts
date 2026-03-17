@@ -1,7 +1,8 @@
 import { Request, Response } from 'express';
-import { getBotSettings, getChatHistory, saveMessage } from '../services/supabase';
-import { generateResponse, transcribeAudio } from '../services/openai';
+import { getBotSettings, getChatHistory, saveMessage, getClinicBotSettings, checkAvailability, bookAppointment } from '../services/supabase';
+import { generateResponse, generateDoctorResponse, transcribeAudio, DOCTOR_TOOLS } from '../services/openai';
 import { sendText, startTyping } from '../services/waha';
+import OpenAI from 'openai';
 
 // Interface based on WAHA webhook `message.upsert` structure
 interface WAMessage {
@@ -37,8 +38,27 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
 
         const phone_number = message.from;
         
-        // 1. Fetch DB settings - specifically for 'Anass' persona
-        const config = await getBotSettings(phone_number, 'Anass');
+        // 1. Fetch DB settings
+        let isDoctorBot = false;
+        let config: any = null;
+        let sessionName: string | undefined = undefined;
+
+        // payload.me has info about the receiving session
+        const receiving_number = (payload.me && typeof payload.me === 'object') ? payload.me.id : '';
+
+        if (receiving_number) {
+            config = await getClinicBotSettings(receiving_number);
+        }
+
+        // If clinic config is activated for this number and status is pro/trial, route to DOCTOR
+        if (config && (config.subscription_status === 'pro' || config.subscription_status === 'trial' || config.subscription_status === 'active')) {
+            isDoctorBot = true;
+            sessionName = config.waha_session_name;
+        } else {
+            // Fallback to Anass persona
+            config = await getBotSettings(phone_number, 'Anass');
+        }
+
         const cooldown_seconds = config.cooldown_seconds || 60;
         const system_prompt = config.system_prompt;
 
@@ -121,49 +141,80 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
         await saveMessage(phone_number, 'user', textContent, false, imageUrl);
 
         // 4. Trigger typing effect
-        await startTyping(phone_number);
+        await startTyping(phone_number, sessionName);
 
         // 5. Generate AI Response
-        const aiMessage = await generateResponse(
-            system_prompt,
-            chatHistory,
-            textContent,
-            imageUrl
-        );
+        let aiMessage = await (isDoctorBot 
+            ? generateDoctorResponse(system_prompt, chatHistory, textContent, imageUrl) 
+            : generateResponse(system_prompt, chatHistory, textContent, imageUrl));
 
         if (!aiMessage) {
             res.status(500).send('Failed to generate AI response');
             return;
         }
 
-        // 6. Handle Function Calling or Standard Reply
+        let finalResponseContent = aiMessage.content;
+
+        // 6. Handle Function Calling
         if (aiMessage.tool_calls && aiMessage.tool_calls.length > 0) {
+            const openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+            
+            // Prepare a temporary conversation array just to inject the tool results
+            const tempMessages: any[] = [
+                { role: 'system', content: system_prompt },
+                ...chatHistory.map(msg => ({ role: msg.role === 'assistant' ? 'assistant' : 'user', content: msg.content })),
+                { role: 'user', content: textContent },
+                aiMessage // push the assistant's tool_call message
+            ];
+            
             for (const toolCall of aiMessage.tool_calls) {
                 if (toolCall.function.name === 'notify_admin_custom_lead') {
                     const args = JSON.parse(toolCall.function.arguments);
                     console.log(`[TOOL] Notifying Admin Custom Lead:`, args);
-                    // Implement logic to notify admin (e.g. email, DB insert, or broadcast to admin WA number)
+                    tempMessages.push({ role: "tool", tool_call_id: toolCall.id, content: JSON.stringify({ status: "success" }) });
                 } 
                 else if (toolCall.function.name === 'register_clinic') {
                     const args = JSON.parse(toolCall.function.arguments);
                     console.log(`[TOOL] Registering Clinic:`, args);
-                    // Implement logic to register clinic in Supabase
+                    tempMessages.push({ role: "tool", tool_call_id: toolCall.id, content: JSON.stringify({ status: "success" }) });
+                }
+                else if (toolCall.function.name === 'check_availability') {
+                    const args = JSON.parse(toolCall.function.arguments);
+                    console.log(`[TOOL] Check Availability (${config.user_id}):`, args);
+                    const availability = await checkAvailability(config.user_id, args.start_date_time);
+                    tempMessages.push({ role: "tool", tool_call_id: toolCall.id, content: JSON.stringify(availability) });
+                }
+                else if (toolCall.function.name === 'book_appointment') {
+                    const args = JSON.parse(toolCall.function.arguments);
+                    console.log(`[TOOL] Book Appointment (${config.user_id}):`, args);
+                    const booking = await bookAppointment(config.user_id, args.start_date_time, args.patient_phone, args.patient_name, args.reason);
+                    tempMessages.push({ role: "tool", tool_call_id: toolCall.id, content: JSON.stringify(booking) });
                 }
             }
-            // Sending a fallback text if tool was called and model didn't return content
-            if (!aiMessage.content) {
-                // Sometimes models return only tool calls. You could follow up the tool output,
-                // but for a 1-step logic we can manually send a predefined response:
-                await sendText(phone_number, "Safi, rani qiyyadt dakchi! (Done, I noted that!)");
-                await saveMessage(phone_number, 'assistant', "Safi, rani qiyyadt dakchi! (Done, I noted that!)", true);
+
+            // Request a new completion with the tool results appended
+            try {
+                const followUpResponse = await openaiClient.chat.completions.create({
+                    model: "gpt-4o-mini",
+                    messages: tempMessages,
+                    tools: isDoctorBot ? DOCTOR_TOOLS : undefined
+                });
+                finalResponseContent = followUpResponse.choices[0].message.content;
+            } catch (err) {
+                console.error("[OpenAI] Follow-up Tool Error:", err);
+            }
+
+            // Fallback if the model fails the second call
+            if (!finalResponseContent) {
+                finalResponseContent = "Safi, rani qiyyadt dakchi! (Done!)";
             }
         }
         
-        if (aiMessage.content) {
-            // Send standard text
-            await sendText(phone_number, aiMessage.content);
+        if (finalResponseContent) {
+            // Send standard text using the dynamic sessionName
+            await sendText(phone_number, finalResponseContent, sessionName);
             // Save outgoing message
-            await saveMessage(phone_number, 'assistant', aiMessage.content, true);
+            await saveMessage(phone_number, 'assistant', finalResponseContent, true);
         }
 
         res.status(200).send('Success');

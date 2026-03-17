@@ -1,0 +1,122 @@
+{
+  "name": "book_appointment",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "4c4044d7-9d96-4425-9dad-ab7a3b1e7d9b",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO appointments (\n    doctor_id, \n    patient_name, \n    patient_phone, \n    start_time, \n    end_time, \n    status,\n    notes -- The new column for \"darani darsa\"\n)\nVALUES (\n    '{{ $json.doctor_id }}', \n    '{{ $json.patient_name }}', \n    '{{ $json.patient_phone }}', \n    '{{ $json.start_time }}'::timestamptz, \n    ('{{ $json.start_time }}'::timestamptz + interval '30 minutes'), \n    'confirmed',\n    '{{ $json.note }}'\n);",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        416,
+        0
+      ],
+      "id": "f3ec3015-1b69-4d38-b040-c7856bee296c",
+      "name": "Execute a SQL query",
+      "credentials": {
+        "postgres": {
+          "id": "8oH3Jkbbsel8stf6",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Capture the raw input\nconst input = $input.first().json;\n\n// 2. Extract data directly or parse if it's a string\nlet data;\ntry {\n  // AI Agents sometimes wrap arguments in a 'query' or 'arguments' string\n  const rawData = input.arguments || input.query || input;\n  data = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;\n} catch (e) {\n  data = input;\n}\n\n// 3. Map and Clean variables for the SQL Query\nreturn {\n  doctor_id: data.doctor_id || \"MISSING_ID\",\n  \n  // Support both possible naming conventions from the AI\n  start_time: data.start_date_time || data.start_time || \"MISSING_TIME\",\n  \n  patient_name: (data.patient_name || \"Unknown Patient\").replace(/'/g, \"''\"),\n  \n  // Sanitize phone: Keep only digits\n  patient_phone: data.patient_phone ? String(data.patient_phone).replace(/\\D/g, \"\") : \"MISSING_PHONE\",\n  \n  // Map \"reason\" to \"note\" for the database\n  note: data.reason || \"No reason provided\"\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        0
+      ],
+      "id": "b782b07e-1fed-4e13-b1e6-fb37d75c98c7",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Capture the results from the Postgres Node\nconst bookingData = $input.first().json;\n\n// 2. Prepare the payload for the AI Agent\nreturn {\n  status: \"success\",\n  confirmation_body: {\n    message: \"تم تسجيل الموعد بنجاح \",\n    patient: $('Code in JavaScript').first().json.patient_name || \"Unknown\",\n    time: $('Code in JavaScript').first().json.start_time || \"Not specified\",\n  },\n  // This instruction tells the AI exactly how to phrase the response\n  instruction_for_ai: \"Confirm the appointment details to the patient in professional Moroccan Darija. Be welcoming and mention the specific time.\"\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        16
+      ],
+      "id": "98b3a193-fb74-4042-a3ee-01b9f8be7c6e",
+      "name": "Format Success Msg1"
+    }
+  ],
+  "pinData": {
+    "Execute Workflow Trigger": [
+      {
+        "json": {
+          "query": "{\"doctor_id\":\"3164572e-6060-486f-9fb9-f449492c0695\",\"start_date_time\":\"2026-02-11 08:00:00+00\",\"patient_phone\":\"0828181872\",\"patient_name\":\"Ilyas allali\",\"reason\":\"darani darsa\"}"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query": {
+      "main": [
+        [
+          {
+            "node": "Format Success Msg1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "d64fe778-8fb2-4fad-9d86-02b4ca7e5dbe",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "a3cadb436088770433e3770927a2ced14a7e5c174d43411f4617dd3fbcdf1b47"
+  },
+  "id": "-PGUpG0wpdIkTXmj5vb1c",
+  "tags": []
+}
