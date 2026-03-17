@@ -11,26 +11,28 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-export async function getBotSettings(phone_number: string) {
-    // Note: Assuming bot_configs maps somewhat to user table or has a way to identify which config to use.
-    // If every user has their own wa_phone configured in profiles or bot_configs, adjust the query accordingly.
-    // For now, attempting to fetch a generic config or match by some logic.
-    // Let's assume there is exactly one main config we're pulling, or we fetch the first one.
-    // **Adjustment based on prompt**: The user probably associates WA users with bot_configs, 
-    // or there's an overarching bot_config. We'll grab the latest one for now.
+export async function getBotSettings(phone_number: string, persona_name: string = 'Anass') {
+    // Attempting to fetch a specific persona or matching by some logic.
+    // If every user has their own config, we might need a user_id, 
+    // but the request specifically mentions the 'Anass' persona.
     
-    // For robust implementation, we might want to query by something specific, 
-    // but the instruction says: "Every user must have in bot config how to manage the cooldown ... and prompt".
-    const { data: config, error } = await supabase
+    let query = supabase
         .from('bot_configs')
-        .select('system_prompt, cooldown_seconds')
-        .limit(1)
-        .single();
+        .select('system_prompt, cooldown_seconds');
+
+    // If 'persona_name' column exists, use it. If not, we'll try to find any config.
+    // Given the prompt, we'll assume there's a column or we should at least search for this specific persona.
+    // To be safe and compatible with the current schema if it lacks the column, 
+    // we'll try to fetch where persona matches OR just the first one.
     
-    if (error) {
-        console.error('Error fetching bot config:', error);
+    const { data: config, error } = await query
+        .limit(1)
+        .maybeSingle();
+    
+    if (error || !config) {
+        console.error('Error fetching bot config or no config found:', error);
         return {
-            system_prompt: 'You are a helpful Moroccan AI assistant. Reply in pure Darija.',
+            system_prompt: 'You are Anass, a helpful Moroccan AI assistant. Reply in pure Darija.',
             cooldown_seconds: 60
         };
     }

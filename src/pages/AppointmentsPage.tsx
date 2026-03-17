@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Plus, Loader2, Phone, User, FileText } from 'lucide-react';
+import { Plus, Loader2, Phone, User, FileText, Trash2, Edit3, Calendar as CalendarIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth'; 
 import 'react-big-calendar/lib/css/react-big-calendar.css';
@@ -49,8 +49,18 @@ export default function AppointmentsPage() {
   const [selectedEvent, setSelectedEvent] = useState<AppointmentEvent | null>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   
-  // State for Create Dialog
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  // State for Edit Dialog
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editAppointment, setEditAppointment] = useState({
+    id: '',
+    patientName: '',
+    phone: '',
+    date: '',
+    time: '',
+    notes: '',
+    status: ''
+  });
+
   const [newAppointment, setNewAppointment] = useState({
     patientName: '',
     phone: '',
@@ -127,6 +137,72 @@ export default function AppointmentsPage() {
   const handleSelectEvent = (event: AppointmentEvent) => {
     setSelectedEvent(event);
     setIsViewDialogOpen(true);
+    
+    // Pre-fill edit state just in case
+    const dateStr = format(event.start, 'yyyy-MM-dd');
+    const timeStr = format(event.start, 'HH:mm');
+    setEditAppointment({
+      id: event.id,
+      patientName: event.title,
+      phone: event.resource.phone,
+      date: dateStr,
+      time: timeStr,
+      notes: event.resource.notes || '',
+      status: event.resource.status
+    });
+  };
+
+  // 3. Handle Delete
+  const handleDeleteAppointment = async () => {
+    if (!selectedEvent) return;
+    
+    const confirmDelete = window.confirm("Are you sure you want to delete this appointment?");
+    if (!confirmDelete) return;
+
+    const { error } = await supabase
+      .from('appointments')
+      .delete()
+      .eq('id', selectedEvent.id);
+
+    if (error) {
+      toast({ variant: 'destructive', title: 'Error', description: error.message });
+    } else {
+      toast({ title: 'Deleted', description: 'Appointment has been removed.' });
+      setIsViewDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['appointments'] });
+    }
+  };
+
+  // 4. Handle Update
+  const handleUpdateAppointment = async () => {
+    if (!user || !editAppointment.id) return;
+    if (!editAppointment.patientName || !editAppointment.date || !editAppointment.time) {
+      toast({ variant: 'destructive', title: 'Missing Fields', description: 'Please fill in Name, Date, and Time.' });
+      return;
+    }
+
+    const startDateTime = new Date(`${editAppointment.date}T${editAppointment.time}`);
+    const endDateTime = new Date(startDateTime.getTime() + 30 * 60000); // 30 mins
+
+    const { error } = await supabase
+      .from('appointments')
+      .update({
+        patient_name: editAppointment.patientName,
+        patient_phone: editAppointment.phone,
+        start_time: startDateTime.toISOString(),
+        end_time: endDateTime.toISOString(),
+        notes: editAppointment.notes,
+        status: editAppointment.status
+      })
+      .eq('id', editAppointment.id);
+
+    if (error) {
+      toast({ variant: 'destructive', title: 'Error', description: error.message });
+    } else {
+      toast({ title: 'Updated', description: 'Appointment updated successfully.' });
+      setIsEditDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['appointments'] });
+    }
   };
 
   return (
@@ -197,7 +273,76 @@ export default function AppointmentsPage() {
                 <p className="text-sm text-muted-foreground">{selectedEvent?.resource.notes || 'No notes.'}</p>
               </div>
             </div>
-            <DialogFooter><Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>Close</Button></DialogFooter>
+            <DialogFooter className="flex justify-between w-full sm:justify-between">
+              <Button variant="destructive" onClick={handleDeleteAppointment} className="gap-2">
+                <Trash2 className="h-4 w-4" /> Delete
+              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>Close</Button>
+                <Button onClick={() => { setIsViewDialogOpen(false); setIsEditDialogOpen(true); }} className="gap-2">
+                  <Edit3 className="h-4 w-4" /> Edit
+                </Button>
+              </div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* EDIT Dialog */}
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent className="glass-card sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Modify Appointment</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="edit-name">Patient Name</Label>
+                <Input 
+                  id="edit-name" 
+                  value={editAppointment.patientName} 
+                  onChange={(e) => setEditAppointment({...editAppointment, patientName: e.target.value})}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-phone">Phone Number</Label>
+                <Input 
+                  id="edit-phone" 
+                  value={editAppointment.phone} 
+                  onChange={(e) => setEditAppointment({...editAppointment, phone: e.target.value})}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-date">Date</Label>
+                  <Input 
+                    id="edit-date" 
+                    type="date"
+                    value={editAppointment.date} 
+                    onChange={(e) => setEditAppointment({...editAppointment, date: e.target.value})} 
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-time">Time</Label>
+                  <Input 
+                    id="edit-time" 
+                    type="time"
+                    value={editAppointment.time} 
+                    onChange={(e) => setEditAppointment({...editAppointment, time: e.target.value})} 
+                  />
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-notes">Notes</Label>
+                <Input 
+                  id="edit-notes" 
+                  value={editAppointment.notes} 
+                  onChange={(e) => setEditAppointment({...editAppointment, notes: e.target.value})}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
+              <Button onClick={handleUpdateAppointment}>Save Changes</Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
 

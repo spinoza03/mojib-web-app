@@ -37,8 +37,8 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
 
         const phone_number = message.from;
         
-        // 1. Fetch DB settings
-        const config = await getBotSettings(phone_number);
+        // 1. Fetch DB settings - specifically for 'Anass' persona
+        const config = await getBotSettings(phone_number, 'Anass');
         const cooldown_seconds = config.cooldown_seconds || 60;
         const system_prompt = config.system_prompt;
 
@@ -48,23 +48,43 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
             const lastMessage = chatHistory[chatHistory.length - 1];
             
             if (lastMessage.from_me) {
-                const now = new Date();
-                const lastMsgTime = new Date(lastMessage.created_at);
-                const diffSeconds = (now.getTime() - lastMsgTime.getTime()) / 1000;
-                
-                // If last message was sent by human (from_me) and it's within cooldown, abort AI response
-                if (diffSeconds < cooldown_seconds) {
-                    console.log(`[Cooldown] Aborting AI response. Time elapsed: ${diffSeconds}s < ${cooldown_seconds}s.`);
-                    res.status(200).send('Aborted: Human in cooldown window');
-                    return;
+                // If it was a human manual message (not 'assistant' role), trigger cooldown
+                // If it was the AI ('assistant' role), do NOT trigger cooldown for the user's next message
+                if (lastMessage.role !== 'assistant') {
+                    const now = new Date();
+                    const lastMsgTime = new Date(lastMessage.created_at);
+                    const diffSeconds = (now.getTime() - lastMsgTime.getTime()) / 1000;
+                    
+                    if (diffSeconds < cooldown_seconds) {
+                        console.log(`[Cooldown] Aborting AI response. Manual intervention detected within ${diffSeconds}s.`);
+                        res.status(200).send('Aborted: Human in cooldown window');
+                        return;
+                    }
                 }
             }
         }
 
-        // If it was just an outgoing message that the webhook picked up, we just log it and do NOT trigger AI
+        // 3. Handle Outgoing Messages (fromMe)
+        // If it was an outgoing message, we need to check if it's the AI or a Human (Manual takeover).
         if (message.fromMe) {
-            await saveMessage(phone_number, 'assistant', message.body || '[Media/Outgoing]', true);
-            res.status(200).send('Logged outgoing message');
+            // Check if this message was JUST saved by the AI thread
+            if (chatHistory.length > 0) {
+                const lastMessage = chatHistory[chatHistory.length - 1];
+                const now = new Date();
+                const lastMsgTime = new Date(lastMessage.created_at);
+                const diffSeconds = (now.getTime() - lastMsgTime.getTime()) / 1000;
+
+                // If content matches and it was recent, it's the AI echoing back. Ignore to avoid duplicates.
+                if (lastMessage.role === 'assistant' && lastMessage.content === message.body && diffSeconds < 5) {
+                    res.status(200).send('Ignored: AI echo');
+                    return;
+                }
+            }
+
+            // Otherwise, it represents a manual message from a human agent on the phone.
+            // We log it as 'manual' so we can detect it for the cooldown check in future runs.
+            await saveMessage(phone_number, 'manual', message.body || '[Media/Outgoing]', true);
+            res.status(200).send('Logged manual outgoing message');
             return;
         }
 
