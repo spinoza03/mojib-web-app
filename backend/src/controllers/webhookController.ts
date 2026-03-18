@@ -4,7 +4,7 @@ import { generateResponse, generateDoctorResponse, transcribeAudio, DOCTOR_TOOLS
 import { sendText, startTyping } from '../services/waha';
 import OpenAI from 'openai';
 
-// Interface based on WAHA webhook `message.upsert` structure
+// Interface based on WAHA webhook payload structure
 interface WAMessage {
     id: string;
     timestamp: number;
@@ -14,7 +14,14 @@ interface WAMessage {
     hasMedia: boolean;
     fromMe: boolean;
     type: string;
-    // other fields omitted for brevity
+    _data?: {
+        type?: string;
+        [key: string]: any;
+    };
+    media?: {
+        url?: string;
+        mimetype?: string;
+    };
 }
 
 export const wahaWebhookHandler = async (req: Request, res: Response): Promise<void> => {
@@ -22,9 +29,9 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
         const payload = req.body;
         // console.log("Incoming Webhook Payload:", JSON.stringify(payload, null, 2));
 
-        // WAHA sends events in `payload.event` and data in `payload.payload`
-        if (payload.event !== 'message.upsert') {
-            res.status(200).send('Not a message.upsert event');
+        // WAHA sends events as 'message' (not 'message.upsert')
+        if (payload.event !== 'message') {
+            res.status(200).send('Not a message event');
             return;
         }
 
@@ -113,21 +120,17 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
         let imageUrl: string | undefined = undefined;
 
         if (message.hasMedia) {
-            // NOTE: Here you would download the media file using WAHA endpoints or parse the base64 from the payload.
-            // For example, if it's an audio note:
-            if (message.type === 'ptt' || message.type === 'audio') {
-                // Pseudo-code to save the audio file locally and run whisper
+            const mediaType = message._data?.type;
+            if (mediaType === 'ptt' || mediaType === 'audio') {
                 console.log('Received audio message, needs processing');
                 // const audioFilePath = await waha.downloadMedia(message.id);
                 // textContent = await transcribeAudio(audioFilePath);
             } 
-            else if (message.type === 'image') {
+            else if (mediaType === 'image') {
                 console.log('Received image message, needs processing');
-                // const savedImageUrl = await waha.getOrDownloadImage(message.id);
-                // imageUrl = savedImageUrl;
-                
-                // For demonstration, simulating Vision input:
-                // textContent = textContent ? textContent : ""; // keep caption if any
+            }
+            else if (mediaType === 'video') {
+                console.log('Received video message');
             }
         }
 

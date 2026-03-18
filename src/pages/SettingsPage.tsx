@@ -9,8 +9,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Bot, Save, Building2, Upload, Loader2, Info } from 'lucide-react';
+import { Bot, Save, Building2, Upload, Loader2, Info, Clock, Bell, Plus, Trash2 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Slider } from '@/components/ui/slider';
 import {
 	Tooltip,
 	TooltipContent,
@@ -29,6 +31,11 @@ export default function SettingsPage() {
 	const [clinicName, setClinicName] = useState('');
 	const [avatarUrl, setAvatarUrl] = useState('');
 	const [isAiEnabled, setIsAiEnabled] = useState(true);
+
+	// Cooldown & Reminder state
+	const [cooldownSeconds, setCooldownSeconds] = useState(60);
+	const [reminderRules, setReminderRules] = useState<{minutes_before: number; enabled: boolean; unit: string; value: number}[]>([]);
+	const [reminderMessage, setReminderMessage] = useState('مرحبا {patient_name}، هاد تذكير بالموعد ديالك في {clinic_name} نهار {time}. نتمناو نشوفوك!');
 
 	// Subscription Helpers
 	const planType = profile?.plan_type || 'starter';
@@ -70,16 +77,31 @@ export default function SettingsPage() {
 				setAvatarUrl(profileData.avatar_url || '');
 			}
 
-			// B. Load Bot Config (FIXED: Using 'bot_configs')
+			// B. Load Bot Config
 			const { data: botData, error } = await supabase
-				.from('bot_configs') // <--- FIXED PLURAL NAME
-				.select('system_prompt')
+				.from('bot_configs')
+				.select('system_prompt, cooldown_seconds, reminder_message, reminder_rules')
 				.eq('user_id', user.id)
 				.maybeSingle();
 
 			if (botData) {
 				// @ts-ignore
 				setPrompt(botData.system_prompt || '');
+				// @ts-ignore
+				if (botData.cooldown_seconds != null) setCooldownSeconds(botData.cooldown_seconds);
+				// @ts-ignore
+				if (botData.reminder_message) setReminderMessage(botData.reminder_message);
+				// @ts-ignore
+				if (botData.reminder_rules && Array.isArray(botData.reminder_rules)) {
+					// @ts-ignore
+					setReminderRules(botData.reminder_rules.map((r: any) => {
+						let unit = 'minutes';
+						let value = r.minutes_before;
+						if (r.minutes_before >= 1440 && r.minutes_before % 1440 === 0) { unit = 'days'; value = r.minutes_before / 1440; }
+						else if (r.minutes_before >= 60 && r.minutes_before % 60 === 0) { unit = 'hours'; value = r.minutes_before / 60; }
+						return { minutes_before: r.minutes_before, enabled: r.enabled, unit, value };
+					}));
+				}
 			}
 		}
 		loadSettings();
@@ -133,16 +155,29 @@ export default function SettingsPage() {
 				.eq('user_id', user.id)
 				.maybeSingle();
 
+			// Convert reminder rules to DB format (only minutes_before + enabled)
+			const dbReminderRules = reminderRules.map(r => ({
+				minutes_before: r.minutes_before,
+				enabled: r.enabled
+			}));
+
+			const botPayload = {
+				system_prompt: prompt,
+				cooldown_seconds: cooldownSeconds,
+				reminder_message: reminderMessage,
+				reminder_rules: dbReminderRules
+			};
+
 			let configError;
 			if (existingBot) {
 				({ error: configError } = await supabase
 					.from('bot_configs')
-					.update({ system_prompt: prompt })
+					.update(botPayload)
 					.eq('user_id', user.id));
 			} else {
 				({ error: configError } = await supabase
 					.from('bot_configs')
-					.insert({ user_id: user.id, system_prompt: prompt }));
+					.insert({ user_id: user.id, ...botPayload }));
 			}
 
 			if (configError) throw configError;
@@ -247,6 +282,139 @@ export default function SettingsPage() {
 						</CardContent>
 					</Card>
 				</div>
+
+				{/* Bot Behavior Card */}
+				<Card className="glass-card">
+					<CardHeader>
+						<CardTitle className="flex items-center gap-2">
+							<Clock className="h-5 w-5 text-primary" />
+							Bot Behavior
+						</CardTitle>
+						<CardDescription>Control how the AI agent responds.</CardDescription>
+					</CardHeader>
+					<CardContent className="space-y-4">
+						<div className="space-y-3">
+							<div className="flex items-center justify-between">
+								<Label>Cooldown Period (seconds)</Label>
+								<span className="text-sm font-bold text-primary bg-primary/10 px-3 py-1 rounded-full">{cooldownSeconds}s</span>
+							</div>
+							<Slider
+								value={[cooldownSeconds]}
+								onValueChange={([v]) => setCooldownSeconds(v)}
+								min={10}
+								max={300}
+								step={10}
+								disabled={isSubscriptionExpired}
+							/>
+							<p className="text-xs text-muted-foreground">After a manual human reply, the AI waits this long before responding again.</p>
+						</div>
+					</CardContent>
+				</Card>
+
+				{/* Appointment Reminders Card */}
+				<Card className="glass-card">
+					<CardHeader>
+						<CardTitle className="flex items-center gap-2">
+							<Bell className="h-5 w-5 text-primary" />
+							Appointment Reminders
+						</CardTitle>
+						<CardDescription>Configure automatic WhatsApp reminders for upcoming appointments.</CardDescription>
+					</CardHeader>
+					<CardContent className="space-y-6">
+						{/* Reminder Rules */}
+						<div className="space-y-3">
+							<Label>Reminder Schedule</Label>
+							{reminderRules.map((rule, idx) => (
+								<div key={idx} className="flex items-center gap-2 p-3 rounded-lg border bg-secondary/30">
+									<Switch
+										checked={rule.enabled}
+										onCheckedChange={(v) => {
+											const updated = [...reminderRules];
+											updated[idx].enabled = v;
+											setReminderRules(updated);
+										}}
+										disabled={isSubscriptionExpired}
+									/>
+									<Input
+										type="number"
+										min={1}
+										className="w-20"
+										value={rule.value}
+										onChange={(e) => {
+											const val = parseInt(e.target.value) || 1;
+											const updated = [...reminderRules];
+											updated[idx].value = val;
+											const multiplier = rule.unit === 'days' ? 1440 : rule.unit === 'hours' ? 60 : 1;
+											updated[idx].minutes_before = val * multiplier;
+											setReminderRules(updated);
+										}}
+										disabled={isSubscriptionExpired}
+									/>
+									<Select
+										value={rule.unit}
+										onValueChange={(unit) => {
+											const updated = [...reminderRules];
+											updated[idx].unit = unit;
+											const multiplier = unit === 'days' ? 1440 : unit === 'hours' ? 60 : 1;
+											updated[idx].minutes_before = rule.value * multiplier;
+											setReminderRules(updated);
+										}}
+										disabled={isSubscriptionExpired}
+									>
+										<SelectTrigger className="w-[110px]">
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="minutes">minutes</SelectItem>
+											<SelectItem value="hours">hours</SelectItem>
+											<SelectItem value="days">days</SelectItem>
+										</SelectContent>
+									</Select>
+									<span className="text-sm text-muted-foreground">before</span>
+									<Button
+										variant="ghost"
+										size="icon"
+										className="h-8 w-8 text-destructive hover:text-destructive/80"
+										onClick={() => setReminderRules(reminderRules.filter((_, i) => i !== idx))}
+										disabled={isSubscriptionExpired}
+									>
+										<Trash2 className="h-4 w-4" />
+									</Button>
+								</div>
+							))}
+							<Button
+								variant="outline"
+								size="sm"
+								className="gap-2"
+								onClick={() => setReminderRules([...reminderRules, { minutes_before: 30, enabled: true, unit: 'minutes', value: 30 }])}
+								disabled={isSubscriptionExpired}
+							>
+								<Plus className="h-4 w-4" /> Add Reminder
+							</Button>
+						</div>
+
+						{/* Reminder Message */}
+						<div className="space-y-2">
+							<Label>Reminder Message Template</Label>
+							<Textarea
+								value={reminderMessage}
+								onChange={(e) => setReminderMessage(e.target.value)}
+								className="min-h-[100px] font-mono text-sm bg-secondary/50"
+								disabled={isSubscriptionExpired}
+							/>
+							<div className="flex gap-2 flex-wrap">
+								<span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full font-mono">{'{patient_name}'}</span>
+								<span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full font-mono">{'{clinic_name}'}</span>
+								<span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full font-mono">{'{time}'}</span>
+							</div>
+						</div>
+
+						<Button onClick={handleSave} disabled={loading || isSubscriptionExpired} className="w-full">
+							<Save className="mr-2 h-4 w-4" />
+							{loading ? 'Saving...' : 'Save Reminder Settings'}
+						</Button>
+					</CardContent>
+				</Card>
 
 				{/* Subscription Section */}
 				<Card className="glass-card">

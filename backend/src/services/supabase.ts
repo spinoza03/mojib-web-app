@@ -177,3 +177,100 @@ export async function bookAppointment(doctorId: string, startDateTime: string, p
         instruction_for_ai: "Confirm the appointment details to the patient in professional Moroccan Darija. Be welcoming and mention the specific time."
     };
 }
+
+// ============ REMINDER SYSTEM ============
+
+export async function getAllActiveReminderConfigs() {
+    // Fetch all doctors who have reminder_rules set and active subscription
+    const { data, error } = await supabase
+        .from('profiles')
+        .select('id, clinic_name, waha_session_name, subscription_status')
+        .in('subscription_status', ['pro', 'trial', 'active']);
+
+    if (error || !data) {
+        console.error('Error fetching profiles for reminders:', error);
+        return [];
+    }
+
+    const results = [];
+    for (const profile of data) {
+        const { data: config } = await supabase
+            .from('bot_configs')
+            .select('reminder_message, reminder_rules, cooldown_seconds')
+            .eq('user_id', profile.id)
+            .maybeSingle();
+
+        if (config?.reminder_rules && Array.isArray(config.reminder_rules)) {
+            const enabledRules = config.reminder_rules.filter((r: any) => r.enabled);
+            if (enabledRules.length > 0) {
+                results.push({
+                    doctor_id: profile.id,
+                    clinic_name: profile.clinic_name,
+                    waha_session_name: profile.waha_session_name,
+                    reminder_message: config.reminder_message || 'مرحبا {patient_name}، هاد تذكير بالموعد ديالك في {clinic_name} نهار {time}. نتمناو نشوفوك!',
+                    reminder_rules: enabledRules
+                });
+            }
+        }
+    }
+    return results;
+}
+
+export async function getAppointmentsNeedingReminder(doctorId: string, minutesBefore: number) {
+    const now = new Date();
+    const targetTime = new Date(now.getTime() + minutesBefore * 60 * 1000);
+    // Window: target - 2.5 min to target + 2.5 min (to catch within the 5-min cron interval)
+    const windowStart = new Date(targetTime.getTime() - 2.5 * 60 * 1000);
+    const windowEnd = new Date(targetTime.getTime() + 2.5 * 60 * 1000);
+
+    const { data, error } = await supabase
+        .from('appointments')
+        .select('id, patient_name, patient_phone, start_time, reminders_sent')
+        .eq('doctor_id', doctorId)
+        .neq('status', 'cancelled')
+        .gte('start_time', windowStart.toISOString())
+        .lte('start_time', windowEnd.toISOString());
+
+    if (error || !data) {
+        if (error) console.error('Error fetching appointments for reminders:', error);
+        return [];
+    }
+
+    // Filter out appointments that already received this specific reminder
+    return data.filter(apt => {
+        const sent: number[] = apt.reminders_sent || [];
+        return !sent.includes(minutesBefore);
+    });
+}
+
+export async function markReminderSent(appointmentId: string, minutesBefore: number) {
+    // Fetch current reminders_sent, append the new value
+    const { data: apt } = await supabase
+        .from('appointments')
+        .select('reminders_sent')
+        .eq('id', appointmentId)
+        .maybeSingle();
+
+    const currentSent: number[] = apt?.reminders_sent || [];
+    currentSent.push(minutesBefore);
+
+    const { error } = await supabase
+        .from('appointments')
+        .update({ reminders_sent: currentSent })
+        .eq('id', appointmentId);
+
+    if (error) {
+        console.error('Error marking reminder sent:', error);
+    }
+}
+
+export async function updateBotCooldown(userId: string, seconds: number) {
+    const { error } = await supabase
+        .from('bot_configs')
+        .update({ cooldown_seconds: seconds })
+        .eq('user_id', userId);
+
+    if (error) console.error('Error updating cooldown:', error);
+    return !error;
+}
+

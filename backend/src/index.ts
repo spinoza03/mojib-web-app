@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { wahaWebhookHandler } from './controllers/webhookController';
+import { startReminderService } from './services/reminderService';
 
 dotenv.config();
 
@@ -24,4 +25,6 @@ app.post('/waha/webhook', wahaWebhookHandler);
 // Start server
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
+  // Start the background reminder service
+  startReminderService();
 });
