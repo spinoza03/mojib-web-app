@@ -213,7 +213,13 @@ export default function ConnectPage() {
 					// REUSE EXISTING SESSION (STOPPED or SCANNING)
 					// Optionally restart it if needed, but often just fetching QR is enough if it's running
 					// If it's stopped, we might need to start it, but let's assume we just enter scanning mode
-					// The user asked to "just restart it" on disconnect, so here we just pick it up.
+					// If the session is STOPPED or FAILED, we must send a /start request to wake it up
+					if (existing.status === 'STOPPED' || existing.status === 'FAILED') {
+						await fetch(`${WAHA_URL}/api/sessions/${wahaSessionName}/start`, {
+							method: 'POST',
+							headers: { 'X-Api-Key': API_KEY }
+						}).catch(() => {});
+					}
 
 					await supabase.from('profiles').update({ whatsapp_status: 'scanning' }).eq('id', user?.id);
 					setStatus('scanning');
@@ -259,6 +265,36 @@ export default function ConnectPage() {
 		} catch (error) {
 			console.error("Start error:", error);
 			toast({ variant: "destructive", title: "Connection Failed", description: "Could not reach WhatsApp server." });
+		} finally {
+			setIsLoading(false);
+		}
+	};
+
+	const handleRestartSession = async () => {
+		if (isSubscriptionExpired || !wahaSessionName) return;
+
+		setIsLoading(true);
+		setQrCode(null);
+		setStatus('scanning');
+		toast({ description: "Forcing session restart..." });
+		try {
+			// 1. Force stop existing session
+			await fetch(`${WAHA_URL}/api/sessions/${wahaSessionName}/stop`, {
+				method: 'POST',
+				headers: { 'X-Api-Key': API_KEY }
+			}).catch(() => {});
+
+			// 2. Clear out completely just in case
+			await fetch(`${WAHA_URL}/api/sessions/${wahaSessionName}`, {
+				method: 'DELETE',
+				headers: { 'X-Api-Key': API_KEY }
+			}).catch(() => {});
+
+			// 3. Fallback to start logic to recreate and attach webhooks
+			await handleStartSession();
+		} catch (error) {
+			console.error("Restart error:", error);
+			toast({ variant: "destructive", title: "Restart Failed", description: "Could not restart the session." });
 		} finally {
 			setIsLoading(false);
 		}
@@ -410,6 +446,18 @@ export default function ConnectPage() {
 												>
 													<XCircle className="mr-2 h-3 w-3" />
 													Cancel
+												</Button>
+											</div>
+											<div className="pt-2">
+												<Button
+													variant="outline"
+													size="sm"
+													onClick={handleRestartSession}
+													disabled={isLoading}
+													className="w-full text-xs h-8 bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/20 text-blue-400"
+												>
+													<RefreshCw className={`mr-2 h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
+													Force Restart Session
 												</Button>
 											</div>
 										</div>
