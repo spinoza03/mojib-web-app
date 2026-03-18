@@ -43,7 +43,7 @@ import { addDays, isAfter } from 'date-fns';
 
 const WAHA_URL = 'https://waha.mojib.online';
 const WAHA_API_KEY = 'my-secret-key';
-const N8N_WEBHOOK_URL = 'https://n8n.srv1310287.hstgr.cloud/webhook/whatsapp-webhook';
+const BACKEND_WEBHOOK_URL = 'http://72.62.237.248:3001/waha/webhook';
 
 export default function AdminPage() {
 	const { profile, user } = useAuth();
@@ -198,7 +198,7 @@ export default function AdminPage() {
 								debug: false,
 								webhooks: [
 									{
-										url: N8N_WEBHOOK_URL,
+										url: BACKEND_WEBHOOK_URL,
 										events: ['message'],
 										retries: {
 											delaySeconds: 40,
@@ -299,7 +299,7 @@ export default function AdminPage() {
 						debug: false,
 						webhooks: [
 							{
-								url: N8N_WEBHOOK_URL,
+								url: BACKEND_WEBHOOK_URL,
 								events: ['message'],
 								retries: {
 									delaySeconds: 40,

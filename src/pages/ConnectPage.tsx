@@ -12,6 +12,7 @@ import { Progress } from '@/components/ui/progress';
 const WAHA_URL = 'https://waha.mojib.online';
 const API_KEY = 'my-secret-key';
 const REFRESH_INTERVAL = 20;
+const BACKEND_WEBHOOK_URL = 'http://72.62.237.248:3001/waha/webhook';
 
 export default function ConnectPage() {
 	const { user, isSubscriptionExpired } = useAuth();
@@ -231,7 +232,22 @@ export default function ConnectPage() {
 				},
 				body: JSON.stringify({
 					name: wahaSessionName,
-					config: { proxy: null, debug: false }
+					config: { 
+						proxy: null, 
+						debug: false,
+						webhooks: [
+							{
+								url: BACKEND_WEBHOOK_URL,
+								events: ['message'],
+								retries: {
+									delaySeconds: 40,
+									attempts: 1,
+									policy: 'linear',
+								},
+								customHeaders: null,
+							},
+						],
+					}
 				})
 			});
 
