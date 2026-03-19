@@ -444,13 +444,13 @@ export default function ConnectPage() {
 								<div>
 									<h2 className="text-2xl font-bold">Fonctionnalité Premium</h2>
 									<p className="text-muted-foreground max-w-md mt-3 mx-auto leading-relaxed">
-										L'automatisation WhatsApp avec l'IA est une exclusivité des plans <strong>Le Pro</strong> et <strong>L'Elite</strong>. 
+										L'automatisation WhatsApp avec l'IA est une exclusivité des plans <strong>L'Automatisé</strong> et <strong>L'Elite</strong>. 
 										Mettez à niveau votre compte pour offrir à vos patients un accueil 24/7.
 									</p>
 								</div>
 								<Button 
 									size="lg"
-									onClick={() => window.open(`https://wa.me/447749343372?text=${encodeURIComponent('Bonjour, je souhaite passer au plan supérieur (Le Pro / L\'Elite) pour activer WhatsApp Mojib.AI.')}`, '_blank')}
+									onClick={() => window.open(`https://wa.me/447749343372?text=${encodeURIComponent('Bonjour, je souhaite passer au plan supérieur (L\'Automatisé / L\'Elite) pour activer WhatsApp Mojib.AI.')}`, '_blank')}
 									className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold mt-4 shadow-lg"
 								>
 									Upgrader mon Abonnement

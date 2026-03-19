@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Building2, Lock, Mail, Phone, Loader2, Stethoscope, Scissors, Home, Car, GraduationCap, HeartPulse } from 'lucide-react';
+import { Building2, Lock, Mail, Phone, Loader2, Stethoscope, Scissors, Home, Car, GraduationCap, HeartPulse, CheckCircle2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Navigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -24,10 +24,41 @@ const NICHES: { id: NicheType; label: string; labelFr: string; icon: any; active
 
 type PlanType = 'essentiel' | 'pro' | 'elite';
 
-const PLANS: { id: PlanType; label: string; price: string; descriptionFr: string; descriptionEn: string }[] = [
-  { id: 'essentiel', label: 'L\'Essentiel', price: '299 DH', descriptionFr: 'Gestion & Finance', descriptionEn: 'CRM & Finance' },
-  { id: 'pro', label: 'Le Pro', price: '499 DH', descriptionFr: 'IA (Anass) 24/7 + L\'Essentiel', descriptionEn: 'AI (Anass) 24/7 + L\'Essentiel' },
-  { id: 'elite', label: 'L\'Elite', price: '799 DH', descriptionFr: 'Plateforme Web + Le Pro', descriptionEn: 'Premium Website + Le Pro' }
+const PLANS: { id: PlanType; label: string; price: string; pitchFr: string; pitchEn: string; valuesFr: string[]; valuesEn: string[]; ctaFr: string; ctaEn: string; recommended?: boolean }[] = [
+  { 
+    id: 'essentiel', 
+    label: 'L\'Organisé', 
+    price: '299 DH', 
+    pitchFr: 'Tout ce dont vous avez besoin pour passer au sans papier et maîtriser vos chiffres.',
+    pitchEn: 'Everything you need to go paperless and take control of your numbers.',
+    valuesFr: ['Dossiers Patients Numériques', 'Suivi des Marges Financières', 'Calendrier Intelligent'], 
+    valuesEn: ['Digital Patient Files (Gestion)', 'Financial Margin Tracker', 'Smart Booking Calendar'],
+    ctaFr: 'Digitalisez votre cabinet aujourd\'hui.',
+    ctaEn: 'Digitalize your practice today.'
+  },
+  { 
+    id: 'pro', 
+    label: 'L\'Automatisé', 
+    price: '499 DH', 
+    pitchFr: 'La secrétaire qui ne dort jamais. Parfait pour les cabinets très occupés.',
+    pitchEn: 'The secretary that never sleeps. Perfect for busy practices that get high WhatsApp volume.',
+    valuesFr: ['Tout dans L\'Organisé', 'Réceptionniste IA WhatsApp Dédiée'], 
+    valuesEn: ['Everything in L\'Organisé', 'Dedicated WhatsApp AI Receptionist'],
+    ctaFr: 'Ne manquez plus jamais un patient.',
+    ctaEn: 'Never miss a patient again.',
+    recommended: true
+  },
+  { 
+    id: 'elite', 
+    label: 'L\'Elite', 
+    price: '799 DH', 
+    pitchFr: 'La domination digitale absolue. Pour les cliniques qui veulent être le numéro 1.',
+    pitchEn: 'Complete digital dominance. For clinics that want to be the #1 choice in their city.',
+    valuesFr: ['Tout dans L\'Automatisé', 'Site Web Haute Conversion Sur-Mesure'], 
+    valuesEn: ['Everything in L\'Automatisé', 'Custom High-Conversion Website'],
+    ctaFr: 'Bâtissez votre autorité médicale.',
+    ctaEn: 'Build your medical authority.'
+  }
 ];
 
 /** Generate a WAHA-safe session name: lowercase, no spaces, no arabic, + random digits */
@@ -310,28 +341,53 @@ export default function AuthPage() {
                 </div>
 
                 {/* Plan Selection Grid */}
-                <div className="space-y-2">
+                <div className="space-y-4">
                   <Label className="text-sm font-medium">{t.selectPlan}</Label>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {PLANS.map((plan) => (
                       <button
                         key={plan.id}
                         type="button"
                         onClick={() => setSelectedPlan(plan.id)}
                         className={cn(
-                          'relative flex flex-col items-start gap-1 p-3 rounded-xl border-2 transition-all duration-200 text-left',
+                          'relative flex flex-col items-start p-5 rounded-2xl border-2 transition-all duration-300 text-left w-full h-full group',
                           selectedPlan === plan.id
-                            ? 'border-primary bg-primary/10 text-primary shadow-lg shadow-primary/10'
-                            : 'border-border/50 bg-secondary/20 text-muted-foreground hover:border-primary/30 hover:bg-secondary/40'
+                            ? 'border-primary bg-primary/5 shadow-xl shadow-primary/10 scale-[1.02]'
+                            : 'border-white/10 bg-secondary/20 hover:border-primary/30 hover:bg-secondary/40'
                         )}
                       >
-                        <span className="text-xs font-bold">{plan.label}</span>
-                        <span className="text-[10px] font-medium leading-tight opacity-80">
-                          {lang === 'fr' ? plan.descriptionFr : plan.descriptionEn}
-                        </span>
-                        <span className="text-xs font-black mt-1">
-                          {plan.price}<span className="text-[9px] font-normal opacity-70">/mo</span>
-                        </span>
+						{plan.recommended && (
+							<span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest shadow-lg shadow-primary/20">
+								Recommandé
+							</span>
+						)}
+                        <div className="flex flex-col w-full gap-2 mb-4">
+                            <span className={cn("text-xl font-black", selectedPlan === plan.id ? "text-primary" : "text-foreground")}>
+                                {plan.label}
+                            </span>
+                            <span className="text-2xl font-black mt-1">
+                                {plan.price}<span className="text-sm font-normal opacity-70">/mo</span>
+                            </span>
+                            <p className="text-xs text-muted-foreground leading-relaxed mt-2 min-h-[48px]">
+                                {lang === 'fr' ? plan.pitchFr : plan.pitchEn}
+                            </p>
+						</div>
+						
+						<div className="space-y-2 w-full mt-auto mb-6 flex-1">
+							{(lang === 'fr' ? plan.valuesFr : plan.valuesEn).map((val, idx) => (
+								<div key={idx} className="flex items-start gap-2.5 text-sm">
+									<CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+									<span className={cn("text-xs font-medium leading-relaxed", selectedPlan === plan.id ? "text-foreground" : "text-muted-foreground")}>{val}</span>
+								</div>
+							))}
+						</div>
+
+						<div className={cn(
+							"w-full py-3 rounded-xl text-xs font-bold text-center transition-colors uppercase tracking-wider",
+							selectedPlan === plan.id ? "bg-primary text-primary-foreground" : "bg-white/5 text-muted-foreground group-hover:bg-primary/20 group-hover:text-primary"
+						)}>
+							{lang === 'fr' ? plan.ctaFr : plan.ctaEn}
+						</div>
                       </button>
                     ))}
                   </div>

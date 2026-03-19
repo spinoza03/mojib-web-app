@@ -624,7 +624,7 @@ export default function SettingsPage() {
 							<div className="rounded-lg border p-4 bg-secondary/20">
 								<p className="text-sm text-muted-foreground">Plan</p>
 								<p className="text-lg font-semibold capitalize">
-									{planType === 'essentiel' ? "L'Essentiel" : planType === 'pro' ? "Le Pro" : planType === 'elite' ? "L'Elite" : planType}
+									{planType === 'essentiel' ? "L'Organisé" : planType === 'pro' ? "L'Automatisé" : planType === 'elite' ? "L'Elite" : planType}
 								</p>
 							</div>
 							<div className="rounded-lg border p-4 bg-secondary/20">
