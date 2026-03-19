@@ -181,19 +181,7 @@ export default function AdminPage() {
 			// 2. Wait a moment for the trigger to create the profile row
 			await new Promise(resolve => setTimeout(resolve, 2000));
 
-			// 3. Update bot_configs system_prompt (trigger already created the row)
-			if (newSystemPrompt) {
-				const { error: botError } = await supabase
-					.from('bot_configs' as any)
-					.update({ system_prompt: newSystemPrompt })
-					.eq('user_id', newUserId);
-
-				if (botError) {
-					console.error('[Admin] Error setting system_prompt:', botError);
-				}
-			}
-
-			// 4. Create WAHA session with the n8n webhook configured
+			// System prompt update block removed
 			if (newWahaSessionName && newWahaSessionName !== 'none') {
 				try {
 					const wahaResponse = await fetch(`${WAHA_URL}/api/sessions`, {
@@ -794,22 +782,7 @@ export default function AdminPage() {
 							</p>
 						</div>
 
-						{/* System Prompt */}
-						<div className="space-y-2">
-							<Label className="flex items-center gap-2">
-								<Bot className="h-4 w-4 text-primary" />
-								System Prompt
-							</Label>
-							<Textarea
-								value={newSystemPrompt}
-								onChange={(e) => setNewSystemPrompt(e.target.value)}
-								placeholder="You are a helpful AI receptionist for this clinic..."
-								className="min-h-[120px] font-mono text-sm bg-secondary/50"
-							/>
-							<p className="text-xs text-muted-foreground">
-								Saved in the bot_configs table. The user can later edit this from their Settings page.
-							</p>
-						</div>
+						{/* System Prompt removed per user request */}
 					</div>
 
 					<DialogFooter>
