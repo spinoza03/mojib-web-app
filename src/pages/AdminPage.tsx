@@ -181,16 +181,16 @@ export default function AdminPage() {
 			// 2. Wait a moment for the trigger to create the profile row
 			await new Promise(resolve => setTimeout(resolve, 2000));
 
-			// 3. Insert bot_configs with system_prompt (same id as profiles)
-			const { error: botError } = await supabase
-				.from('bot_configs' as any)
-				.insert({
-					user_id: newUserId,
-					system_prompt: newSystemPrompt || '',
-				});
+			// 3. Update bot_configs system_prompt (trigger already created the row)
+			if (newSystemPrompt) {
+				const { error: botError } = await supabase
+					.from('bot_configs' as any)
+					.update({ system_prompt: newSystemPrompt })
+					.eq('user_id', newUserId);
 
-			if (botError) {
-				console.error('[Admin] Error setting system_prompt:', botError);
+				if (botError) {
+					console.error('[Admin] Error setting system_prompt:', botError);
+				}
 			}
 
 			// 4. Create WAHA session with the n8n webhook configured
