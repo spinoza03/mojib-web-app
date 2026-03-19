@@ -133,6 +133,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const canAccessFeature = (featureName: FeatureName) => {
     if (!profile) return false;
 
+    if (profile.role === 'superuser') return true;
+
     if (profile.subscription_status === 'expired') {
       return false;
     }
