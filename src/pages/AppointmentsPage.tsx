@@ -94,6 +94,18 @@ export default function AppointmentsPage() {
   // otherwise we can just inject it. But for ease, we start with the assumed local.
   const [selectedTimzeone, setSelectedTimezone] = useState(browserIz || 'Africa/Casablanca');
 
+  // Fetch bot_configs for slot_interval_minutes
+  const { data: config } = useQuery({
+    queryKey: ['bot_config', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const { data } = await supabase.from('bot_configs').select('slot_interval_minutes').eq('user_id', user.id).maybeSingle();
+      return data;
+    },
+    enabled: !!user?.id
+  });
+  const slotDuration = config?.slot_interval_minutes || 30;
+
   // 1. FIXED QUERY: Filter by doctor_id
   const { data: events, isLoading } = useQuery({
     queryKey: ['appointments', user?.id], // Dependent on user.id
@@ -147,7 +159,7 @@ export default function AppointmentsPage() {
     }
 
     const startDateTime = new Date(`${newAppointment.date}T${newAppointment.time}`);
-    const endDateTime = new Date(startDateTime.getTime() + 30 * 60000); // 30 mins
+    const endDateTime = new Date(startDateTime.getTime() + slotDuration * 60000); 
 
     const { error } = await supabase.from('appointments').insert({
       doctor_id: user.id, // Assign to current user
@@ -160,7 +172,11 @@ export default function AppointmentsPage() {
     });
 
     if (error) {
-      toast({ variant: 'destructive', title: 'Error', description: error.message });
+      if (error.message.includes('Capacité du créneau atteinte')) {
+         toast({ variant: 'destructive', title: 'Créneau Complet', description: 'Vous avez atteint votre capacité maximum pour cet horaire.' });
+      } else {
+         toast({ variant: 'destructive', title: 'Error', description: error.message });
+      }
     } else {
       toast({ title: 'Success', description: 'Appointment booked successfully.' });
       setIsCreateDialogOpen(false);
@@ -214,7 +230,7 @@ export default function AppointmentsPage() {
     }
 
     const startDateTime = new Date(`${editAppointment.date}T${editAppointment.time}`);
-    const endDateTime = new Date(startDateTime.getTime() + 30 * 60000); 
+    const endDateTime = new Date(startDateTime.getTime() + slotDuration * 60000); 
 
     // SECURITY DIAGNOSIS: We append .select() to ensure RLS permitted the update.
     const { data, error } = await supabase.from('appointments').update({
@@ -227,7 +243,11 @@ export default function AppointmentsPage() {
       }).eq('id', editAppointment.id).select();
 
     if (error) {
-      toast({ variant: 'destructive', title: 'Database Error', description: error.message });
+      if (error.message.includes('Capacité du créneau atteinte')) {
+         toast({ variant: 'destructive', title: 'Créneau Complet', description: 'Vous avez atteint votre capacité maximum pour cet horaire.' });
+      } else {
+         toast({ variant: 'destructive', title: 'Database Error', description: error.message });
+      }
     } else if (!data || data.length === 0) {
       toast({ variant: 'destructive', title: 'Update Failed (RLS)', description: 'Your Supabase database blocked the update due to Row-Level Security. Please update your UPDATE policy to check for doctor_id.' });
     } else {
@@ -245,7 +265,11 @@ export default function AppointmentsPage() {
       }).eq('id', event.id).select();
 
     if (error) {
-      toast({ variant: 'destructive', title: 'Database Error', description: error.message });
+      if (error.message.includes('Capacité du créneau atteinte')) {
+         toast({ variant: 'destructive', title: 'Créneau Complet', description: 'Vous avez atteint votre capacité maximum pour cet horaire.' });
+      } else {
+         toast({ variant: 'destructive', title: 'Database Error', description: error.message });
+      }
     } else if (!data || data.length === 0) {
        toast({ variant: 'destructive', title: 'Drag & Drop Failed (RLS)', description: 'Row-Level Security blocked this move. Update your UPDATE policy.' });
     } else {

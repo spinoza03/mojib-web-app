@@ -7,9 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Users, Search, Plus, Calendar, FileText, ChevronRight, Activity, TrendingUp } from 'lucide-react';
+import { Loader2, Users, Search, Plus, Calendar, FileText, ChevronRight, Activity, TrendingUp, Upload, Image as ImageIcon, File as FileIcon } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import moment from 'moment';
 import 'moment/locale/fr';
 
@@ -36,6 +37,12 @@ export default function CRMPage() {
 	const [isAddTreatmentOpen, setIsAddTreatmentOpen] = useState(false);
 	const [newTreatment, setNewTreatment] = useState({ treatment_name: '', quantity: '', collected_amount: '', product_cost: '', notes: '' });
 	const [savingTreatment, setSavingTreatment] = useState(false);
+
+	// Files State
+	const [patientFiles, setPatientFiles] = useState<any[]>([]);
+	const [loadingFiles, setLoadingFiles] = useState(false);
+	const [uploadingFile, setUploadingFile] = useState(false);
+	const [activeTab, setActiveTab] = useState('history');
 
 	useEffect(() => {
 		if (user) fetchPatients();
@@ -73,6 +80,24 @@ export default function CRMPage() {
 			toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible de charger l\'historique.' });
 		} finally {
 			setLoadingTreatments(false);
+		}
+	};
+
+	const fetchPatientFiles = async (patientId: string) => {
+		setLoadingFiles(true);
+		try {
+			const { data, error } = await supabase
+				.from('patient_files')
+				.select('*')
+				.eq('patient_id', patientId)
+				.order('created_at', { ascending: false });
+
+			if (error) throw error;
+			setPatientFiles(data || []);
+		} catch (error: any) {
+			toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible de charger les fichiers.' });
+		} finally {
+			setLoadingFiles(false);
 		}
 	};
 
@@ -134,9 +159,44 @@ export default function CRMPage() {
 		}
 	};
 
+	const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        try {
+            setUploadingFile(true);
+            if (!user || !selectedPatient || !event.target.files || event.target.files.length === 0) return;
+
+            const file = event.target.files[0];
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${selectedPatient.id}-${Date.now()}.${fileExt}`;
+
+            const { error: uploadError } = await supabase.storage.from('patient-files').upload(fileName, file, { upsert: true });
+            if (uploadError) throw uploadError;
+
+            const { data: { publicUrl } } = supabase.storage.from('patient-files').getPublicUrl(fileName);
+            
+            const { data, error } = await supabase.from('patient_files').insert({
+                patient_id: selectedPatient.id,
+                user_id: user.id,
+                file_name: file.name,
+                file_url: publicUrl,
+                file_type: file.type || fileExt
+            }).select().single();
+
+            if (error) throw error;
+            setPatientFiles([data, ...patientFiles]);
+            toast({ title: 'Succès', description: 'Fichier ajouté au dossier.' });
+
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Upload Failed', description: error.message });
+        } finally {
+            setUploadingFile(false);
+        }
+    };
+
 	const openLifeFile = (patient: any) => {
 		setSelectedPatient(patient);
 		fetchTreatments(patient.id);
+		fetchPatientFiles(patient.id);
+		setActiveTab('history');
 	};
 
 	const filteredPatients = patients.filter(p => 
@@ -234,108 +294,178 @@ export default function CRMPage() {
 						{selectedPatient ? (
 							<>
 								<CardHeader className="pb-0 border-b border-white/5 bg-secondary/10">
-									<div className="flex justify-between items-start mb-6">
-										<div>
-											<CardTitle className="text-2xl flex items-center gap-2">
-												Dossier : {selectedPatient.first_name} {selectedPatient.last_name}
-												{treatments.length > 3 && <Badge className="bg-amber-500/20 text-amber-500 border-amber-500/30">Client Fidèle (Elite)</Badge>}
-											</CardTitle>
-											<div className="flex gap-4 mt-2 text-sm text-muted-foreground">
-												{selectedPatient.phone && <span>📞 {selectedPatient.phone}</span>}
-												{selectedPatient.email && <span>✉️ {selectedPatient.email}</span>}
-												<span>📅 Créé {moment(selectedPatient.created_at).fromNow()}</span>
+									<Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+										<div className="flex justify-between items-start mb-6">
+											<div>
+												<CardTitle className="text-2xl flex items-center gap-2">
+													Dossier : {selectedPatient.first_name} {selectedPatient.last_name}
+													{treatments.length > 3 && <Badge className="bg-amber-500/20 text-amber-500 border-amber-500/30">Client Fidèle (Elite)</Badge>}
+												</CardTitle>
+												<div className="flex gap-4 mt-2 text-sm text-muted-foreground">
+													{selectedPatient.phone && <span>📞 {selectedPatient.phone}</span>}
+													{selectedPatient.email && <span>✉️ {selectedPatient.email}</span>}
+													<span>📅 Créé {moment(selectedPatient.created_at).fromNow()}</span>
+												</div>
 											</div>
-										</div>
-										<Dialog open={isAddTreatmentOpen} onOpenChange={setIsAddTreatmentOpen}>
-											<DialogTrigger asChild>
-												<Button size="sm"><Plus className="mr-2 h-4 w-4" /> Ajouter Soin</Button>
-											</DialogTrigger>
-											<DialogContent>
-												<DialogHeader>
-													<DialogTitle>Nouvelle Séance / Traitement</DialogTitle>
-												</DialogHeader>
-												<form onSubmit={handleAddTreatment} className="space-y-4">
-													<div className="space-y-2">
-														<Label>Soin (ex: Botox, Juvederm...)</Label>
-														<Input value={newTreatment.treatment_name} onChange={e => setNewTreatment({...newTreatment, treatment_name: e.target.value})} required />
-													</div>
-													<div className="space-y-2">
-														<Label>Quantité Injectée / Détails</Label>
-														<Input value={newTreatment.quantity} onChange={e => setNewTreatment({...newTreatment, quantity: e.target.value})} placeholder="ex: 1 Seringue" />
-													</div>
-													<div className="grid grid-cols-2 gap-4">
-														<div className="space-y-2">
-															<Label>Montant Encaissé (DH)</Label>
-															<Input type="number" value={newTreatment.collected_amount} onChange={e => setNewTreatment({...newTreatment, collected_amount: e.target.value})} required />
-														</div>
-														<div className="space-y-2">
-															<Label>Coût Consommable (DH)</Label>
-															<Input type="number" value={newTreatment.product_cost} onChange={e => setNewTreatment({...newTreatment, product_cost: e.target.value})} required />
-														</div>
-													</div>
-													<div className="space-y-2">
-														<Label>Notes Cliniques / Consignes Sécurité</Label>
-														<Input value={newTreatment.notes} onChange={e => setNewTreatment({...newTreatment, notes: e.target.value})} placeholder="ex: Revenir dans 6 mois..." />
-													</div>
-													<Button type="submit" className="w-full" disabled={savingTreatment}>
-														{savingTreatment ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Enregistrer le Soin'}
-													</Button>
-												</form>
-											</DialogContent>
-										</Dialog>
-									</div>
-								</CardHeader>
-								<CardContent className="p-0 overflow-y-auto flex-1 bg-black/20">
-									{loadingTreatments ? (
-										<div className="p-12 flex justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
-									) : treatments.length === 0 ? (
-										<div className="p-12 text-center flex flex-col items-center">
-											<FileText className="h-16 w-16 text-white/5 mb-4" />
-											<h3 className="text-lg font-medium text-white/40">Dossier Vierge</h3>
-											<p className="text-sm text-white/30 mt-1">Ce patient n'a pas encore de soins enregistrés.</p>
-										</div>
-									) : (
-										<div className="p-6 space-y-6">
-											{/* Treatment Timeline */}
-											<div className="relative border-l-2 border-primary/20 ml-3 space-y-8">
-												{treatments.map((treatment, idx) => (
-													<div key={treatment.id} className="relative pl-6">
-														{/* Timeline Dot */}
-														<div className="absolute -left-[9px] top-1 h-4 w-4 rounded-full bg-background border-2 border-primary"></div>
-														
-														<div className="bg-secondary/30 p-5 rounded-xl border border-white/5 hover:border-primary/20 transition-colors">
-															<div className="flex justify-between items-start mb-2">
-																<div>
-																	<h4 className="font-bold text-lg text-foreground flex items-center gap-2">
-																		{treatment.treatment_name}
-																		{idx === 0 && <Badge className="bg-blue-500/20 text-blue-400 py-0 border-none">Dernier Soin</Badge>}
-																	</h4>
-																	<p className="text-xs font-medium text-primary/80 uppercase tracking-widest mt-1">
-																		{moment(treatment.date).format('LL')} • {moment(treatment.date).fromNow()}
-																	</p>
+											
+											{/* Dynamic Right Button based on Tab */}
+											{activeTab === 'history' && (
+												<Dialog open={isAddTreatmentOpen} onOpenChange={setIsAddTreatmentOpen}>
+													<DialogTrigger asChild>
+														<Button size="sm"><Plus className="mr-2 h-4 w-4" /> Ajouter Soin</Button>
+													</DialogTrigger>
+													<DialogContent>
+														<DialogHeader>
+															<DialogTitle>Nouvelle Séance / Traitement</DialogTitle>
+														</DialogHeader>
+														<form onSubmit={handleAddTreatment} className="space-y-4">
+															{/* Treatment Form Content */}
+															<div className="space-y-2">
+																<Label>Soin (ex: Botox, Juvederm...)</Label>
+																<Input value={newTreatment.treatment_name} onChange={e => setNewTreatment({...newTreatment, treatment_name: e.target.value})} required />
+															</div>
+															<div className="space-y-2">
+																<Label>Quantité Injectée / Détails</Label>
+																<Input value={newTreatment.quantity} onChange={e => setNewTreatment({...newTreatment, quantity: e.target.value})} placeholder="ex: 1 Seringue" />
+															</div>
+															<div className="grid grid-cols-2 gap-4">
+																<div className="space-y-2">
+																	<Label>Montant Encaissé (DH)</Label>
+																	<Input type="number" value={newTreatment.collected_amount} onChange={e => setNewTreatment({...newTreatment, collected_amount: e.target.value})} required />
+																</div>
+																<div className="space-y-2">
+																	<Label>Coût Consommable (DH)</Label>
+																	<Input type="number" value={newTreatment.product_cost} onChange={e => setNewTreatment({...newTreatment, product_cost: e.target.value})} required />
 																</div>
 															</div>
-															
-															<div className="grid grid-cols-2 gap-4 mt-4">
-																{treatment.quantity && (
-																	<div className="bg-black/20 p-2 rounded text-sm">
-																		<span className="text-muted-foreground block text-xs">Quantité</span>
-																		<span className="font-medium text-white">{treatment.quantity}</span>
-																	</div>
-																)}
-																{treatment.notes && (
-																	<div className="bg-amber-500/5 p-2 rounded text-sm lg:col-span-2 border border-amber-500/10">
-																		<span className="text-amber-500/70 block text-xs font-medium flex items-center gap-1"><Activity className="h-3 w-3"/> Sécurité & Notes</span>
-																		<span className="text-foreground">{treatment.notes}</span>
-																	</div>
-																)}
+															<div className="space-y-2">
+																<Label>Notes Cliniques / Consignes Sécurité</Label>
+																<Input value={newTreatment.notes} onChange={e => setNewTreatment({...newTreatment, notes: e.target.value})} placeholder="ex: Revenir dans 6 mois..." />
 															</div>
-														</div>
-													</div>
-												))}
-											</div>
+															<Button type="submit" className="w-full" disabled={savingTreatment}>
+																{savingTreatment ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Enregistrer le Soin'}
+															</Button>
+														</form>
+													</DialogContent>
+												</Dialog>
+											)}
+											{activeTab === 'files' && (
+												<div>
+													<Label htmlFor="patient-file-upload" className="cursor-pointer inline-flex items-center gap-2 h-9 px-3 rounded-md border border-input bg-primary text-primary-foreground shadow text-sm font-medium transition-colors hover:bg-primary/90">
+														{uploadingFile ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+														{uploadingFile ? 'Envoi...' : 'Nouveau Fichier'}
+													</Label>
+													<Input id="patient-file-upload" type="file" className="hidden" onChange={handleFileUpload} disabled={uploadingFile} />
+												</div>
+											)}
 										</div>
-									)}
+										<TabsList className="bg-transparent border-none">
+											<TabsTrigger value="history" className="data-[state=active]:bg-secondary/40 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none shadow-none bg-transparent">
+												Historique (Soins)
+											</TabsTrigger>
+											<TabsTrigger value="files" className="data-[state=active]:bg-secondary/40 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none shadow-none bg-transparent">
+												Fichiers & Scanners <Badge className="ml-2 bg-secondary/50">{patientFiles.length}</Badge>
+											</TabsTrigger>
+										</TabsList>
+									</Tabs>
+								</CardHeader>
+								<CardContent className="p-0 overflow-y-auto flex-1 bg-black/20">
+									<Tabs value={activeTab} className="h-full">
+										{/* History Tab */}
+										<TabsContent value="history" className="h-full m-0">
+											{loadingTreatments ? (
+												<div className="p-12 flex justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+											) : treatments.length === 0 ? (
+												<div className="p-12 text-center flex flex-col items-center">
+													<FileText className="h-16 w-16 text-white/5 mb-4" />
+													<h3 className="text-lg font-medium text-white/40">Dossier Vierge</h3>
+													<p className="text-sm text-white/30 mt-1">Ce patient n'a pas encore de soins enregistrés.</p>
+												</div>
+											) : (
+												<div className="p-6 space-y-6">
+													<div className="relative border-l-2 border-primary/20 ml-3 space-y-8">
+														{treatments.map((treatment, idx) => (
+															<div key={treatment.id} className="relative pl-6">
+																{/* Timeline Dot */}
+																<div className="absolute -left-[9px] top-1 h-4 w-4 rounded-full bg-background border-2 border-primary"></div>
+																
+																<div className="bg-secondary/30 p-5 rounded-xl border border-white/5 hover:border-primary/20 transition-colors">
+																	<div className="flex justify-between items-start mb-2">
+																		<div>
+																			<h4 className="font-bold text-lg text-foreground flex items-center gap-2">
+																				{treatment.treatment_name}
+																				{idx === 0 && <Badge className="bg-blue-500/20 text-blue-400 py-0 border-none">Dernier Soin</Badge>}
+																			</h4>
+																			<p className="text-xs font-medium text-primary/80 uppercase tracking-widest mt-1">
+																				{moment(treatment.date).format('LL')} • {moment(treatment.date).fromNow()}
+																			</p>
+																		</div>
+																	</div>
+																	
+																	<div className="grid grid-cols-2 gap-4 mt-4">
+																		{treatment.quantity && (
+																			<div className="bg-black/20 p-2 rounded text-sm">
+																				<span className="text-muted-foreground block text-xs">Quantité</span>
+																				<span className="font-medium text-white">{treatment.quantity}</span>
+																			</div>
+																		)}
+																		{treatment.notes && (
+																			<div className="bg-amber-500/5 p-2 rounded text-sm lg:col-span-2 border border-amber-500/10">
+																				<span className="text-amber-500/70 block text-xs font-medium flex items-center gap-1"><Activity className="h-3 w-3"/> Sécurité & Notes</span>
+																				<span className="text-foreground">{treatment.notes}</span>
+																			</div>
+																		)}
+																	</div>
+																</div>
+															</div>
+														))}
+													</div>
+												</div>
+											)}
+										</TabsContent>
+
+										{/* Files Tab */}
+										<TabsContent value="files" className="h-full m-0">
+											{loadingFiles ? (
+												<div className="p-12 flex justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+											) : patientFiles.length === 0 ? (
+												<div className="p-12 text-center flex flex-col items-center">
+													<ImageIcon className="h-16 w-16 text-white/5 mb-4" />
+													<h3 className="text-lg font-medium text-white/40">Aucun Fichier</h3>
+													<p className="text-sm text-white/30 mt-1">Téléchargez des photos avant/après, des scans ou des ordonnances.</p>
+												</div>
+											) : (
+												<div className="p-6 grid grid-cols-2 sm:grid-cols-3 gap-4">
+													{patientFiles.map((file) => {
+														const isImage = file.file_type?.startsWith('image/') || file.file_url.match(/\.(jpeg|jpg|gif|png|webp)$/i);
+														return (
+															<a 
+																key={file.id} 
+																href={file.file_url} 
+																target="_blank" 
+																rel="noopener noreferrer"
+																className="group relative bg-secondary/30 rounded-xl border border-white/5 overflow-hidden hover:border-primary/50 transition-colors aspect-square flex flex-col"
+															>
+																{isImage ? (
+																	<div className="flex-1 overflow-hidden bg-black/40">
+																		<img src={file.file_url} alt={file.file_name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+																	</div>
+																) : (
+																	<div className="flex-1 flex items-center justify-center bg-black/40">
+																		<FileIcon className="h-12 w-12 text-muted-foreground group-hover:text-primary transition-colors" />
+																	</div>
+																)}
+																<div className="p-3 bg-secondary/80 backdrop-blur-md shrink-0">
+																	<p className="text-xs font-medium text-foreground truncate" title={file.file_name}>{file.file_name}</p>
+																	<p className="text-[10px] text-muted-foreground mt-0.5">{moment(file.created_at).format('ll')}</p>
+																</div>
+															</a>
+														);
+													})}
+												</div>
+											)}
+										</TabsContent>
+									</Tabs>
 								</CardContent>
 							</>
 						) : (

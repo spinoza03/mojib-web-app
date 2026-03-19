@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Bot, Save, Building2, Upload, Loader2, Info, Clock, Bell, Plus, Trash2, Languages, AlertTriangle, CreditCard, Copy, CheckCircle2 } from 'lucide-react';
+import { Bot, Save, Building2, Upload, Loader2, Info, Clock, Bell, Plus, Trash2, Languages, AlertTriangle, CreditCard, Copy, CheckCircle2, CalendarDays, Users } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
@@ -55,6 +55,8 @@ export default function SettingsPage() {
 	const [tone, setTone] = useState('professional,welcoming');
 	const [selectedLanguages, setSelectedLanguages] = useState<string[]>(['darija', 'french']);
 	const [additionalInfo, setAdditionalInfo] = useState('');
+	const [slotCapacity, setSlotCapacity] = useState(1);
+	const [slotIntervalMinutes, setSlotIntervalMinutes] = useState(30);
 
 	// Cooldown & Reminder state
 	const [cooldownSeconds, setCooldownSeconds] = useState(60);
@@ -98,13 +100,17 @@ export default function SettingsPage() {
 			// B. Load Bot Config
 			const { data: botData } = await supabase
 				.from('bot_configs' as any)
-				.select('system_prompt, cooldown_seconds, reminder_message, reminder_rules, working_hours, tone, languages, additional_info')
+				.select('system_prompt, cooldown_seconds, reminder_message, reminder_rules, working_hours, tone, languages, additional_info, slot_capacity, slot_interval_minutes')
 				.eq('user_id', user.id)
 				.maybeSingle();
 
 			if (botData) {
 				// @ts-ignore
 				if (botData.cooldown_seconds != null) setCooldownSeconds(botData.cooldown_seconds);
+				// @ts-ignore
+				if (botData.slot_capacity != null) setSlotCapacity(botData.slot_capacity);
+				// @ts-ignore
+				if (botData.slot_interval_minutes != null) setSlotIntervalMinutes(botData.slot_interval_minutes);
 				// @ts-ignore
 				if (botData.reminder_message) setReminderMessage(botData.reminder_message);
 				// @ts-ignore
@@ -190,6 +196,8 @@ export default function SettingsPage() {
 
 			const botPayload = {
 				cooldown_seconds: cooldownSeconds,
+				slot_capacity: slotCapacity,
+				slot_interval_minutes: slotIntervalMinutes,
 				reminder_message: reminderMessage,
 				reminder_rules: dbReminderRules,
 				working_hours: workingHours,
@@ -483,6 +491,50 @@ export default function SettingsPage() {
 						</Card>
 					</>
 				)}
+
+				{/* Calendar Config Card (accessible for all niches) */}
+				<Card className="glass-card">
+					<CardHeader>
+						<CardTitle className="flex items-center gap-2">
+							<CalendarDays className="h-5 w-5 text-primary" />
+							Configuration du Calendrier
+						</CardTitle>
+						<CardDescription>Définissez vos règles de prise de rendez-vous pour éviter les conflits (sécurité double-booking).</CardDescription>
+					</CardHeader>
+					<CardContent className="space-y-6">
+						<div className="space-y-3">
+							<div className="flex items-center justify-between">
+								<Label className="flex items-center gap-2"><Users className="h-4 w-4" /> Capacité par Créneau (Patients en simultané)</Label>
+								<span className="text-sm font-bold text-primary bg-primary/10 px-3 py-1 rounded-full">{slotCapacity} {slotCapacity > 1 ? 'Patients' : 'Patient'}</span>
+							</div>
+							<Slider
+								value={[slotCapacity]}
+								onValueChange={([v]) => setSlotCapacity(v)}
+								min={1}
+								max={10}
+								step={1}
+								disabled={isSubscriptionExpired}
+							/>
+							<p className="text-xs text-muted-foreground">Le nombre de patients que vous (ou votre équipe) pouvez recevoir et traiter à la même heure exacte.</p>
+						</div>
+
+						<div className="space-y-3 pt-4 border-t border-border/50">
+							<div className="flex items-center justify-between">
+								<Label className="flex items-center gap-2"><Clock className="h-4 w-4" /> Durée par Défaut du Créneau (minutes)</Label>
+								<span className="text-sm font-bold text-primary bg-primary/10 px-3 py-1 rounded-full">{slotIntervalMinutes} min</span>
+							</div>
+							<Slider
+								value={[slotIntervalMinutes]}
+								onValueChange={([v]) => setSlotIntervalMinutes(v)}
+								min={10}
+								max={120}
+								step={5}
+								disabled={isSubscriptionExpired}
+							/>
+							<p className="text-xs text-muted-foreground">La durée standard réservée pour chaque patient (par ex: 30 minutes).</p>
+						</div>
+					</CardContent>
+				</Card>
 
 				{/* Bot Behavior Card (accessible for all niches) */}
 				<Card className="glass-card">
