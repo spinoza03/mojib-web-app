@@ -118,10 +118,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    setSession(null);
-    setProfile(null);
+    try {
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.error('Sign out API error:', err);
+    } finally {
+      setUser(null);
+      setSession(null);
+      setProfile(null);
+      localStorage.clear();
+      sessionStorage.clear();
+    }
   };
 
   const refreshProfile = async () => {
