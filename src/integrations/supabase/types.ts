@@ -94,7 +94,6 @@ export type Database = {
           id: string
           phone: string | null
           updated_at: string
-          user_id: string
           whatsapp_status: string
         }
         Insert: {
@@ -104,7 +103,6 @@ export type Database = {
           id?: string
           phone?: string | null
           updated_at?: string
-          user_id: string
           whatsapp_status?: string
         }
         Update: {
@@ -114,7 +112,6 @@ export type Database = {
           id?: string
           phone?: string | null
           updated_at?: string
-          user_id?: string
           whatsapp_status?: string
         }
         Relationships: []

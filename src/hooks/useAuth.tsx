@@ -135,10 +135,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (profile.role === 'superuser') return true;
 
-    if (profile.subscription_status === 'expired') {
-      return false;
-    }
-
+    // Do not block access to screens if subscription is expired
     return true;
   };
 

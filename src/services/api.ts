@@ -153,7 +153,7 @@ export async function updateWhatsAppStatus(userId: string, status: 'connected' |
 	const { error } = await supabase
 		.from('profiles')
 		.update(updates)
-		.eq('user_id', userId);
+		.eq('id', userId);
 
 	if (error) {
 		console.error('[API] Error updating WhatsApp status:', error);
@@ -206,7 +206,7 @@ export async function fetchProfile(userId: string): Promise<Profile | null> {
 	const { data, error } = await supabase
 		.from('profiles')
 		.select('*')
-		.eq('user_id', userId)
+		.eq('id', userId)
 		.maybeSingle();
 
 	if (error) {
@@ -221,7 +221,7 @@ export async function updateProfile(userId: string, updates: Partial<Profile>): 
 	const { data, error } = await supabase
 		.from('profiles')
 		.update(updates)
-		.eq('user_id', userId)
+		.eq('id', userId)
 		.select()
 		.single();
 
@@ -374,7 +374,7 @@ export async function deleteUser(userId: string): Promise<{ success: boolean }> 
 	const { error } = await supabase
 		.from('profiles')
 		.delete()
-		.eq('user_id', userId);
+		.eq('id', userId);
 
 	if (error) {
 		console.error('[API] Error deleting user:', error);
