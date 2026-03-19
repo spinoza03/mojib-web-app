@@ -56,11 +56,21 @@ export default function AdminPage() {
 	const [createDialogOpen, setCreateDialogOpen] = useState(false);
 	const [selectedUser, setSelectedUser] = useState<ClinicWithEmail | null>(null);
 	const [userEmails, setUserEmails] = useState<Record<string, string>>({});
-	const [planSelection, setPlanSelection] = useState<'starter' | 'pro'>('pro');
+	
+	// Subscription & Config State
+	const [planSelection, setPlanSelection] = useState<'pro'>('pro');
 	const [startingSessionId, setStartingSessionId] = useState<string | null>(null);
 	const [statusSelection, setStatusSelection] = useState<'trial' | 'active' | 'expired'>('trial');
 	const [trialEndDate, setTrialEndDate] = useState('');
 	const [trialExtension, setTrialExtension] = useState('');
+	
+	const [nicheSelection, setNicheSelection] = useState<string>('dentistry');
+	const [workingHours, setWorkingHours] = useState('');
+	const [botTone, setBotTone] = useState('');
+	const [botLanguages, setBotLanguages] = useState('');
+	const [additionalInfo, setAdditionalInfo] = useState('');
+	const [systemPrompt, setSystemPrompt] = useState('');
+	const [isFetchingConfig, setIsFetchingConfig] = useState(false);
 
 	// Create User form state
 	const [newClinicName, setNewClinicName] = useState('');
@@ -70,6 +80,7 @@ export default function AdminPage() {
 	const [newWahaSessionName, setNewWahaSessionName] = useState('');
 	const [newSystemPrompt, setNewSystemPrompt] = useState('');
 	const [isCreating, setIsCreating] = useState(false);
+	const [isImpersonating, setIsImpersonating] = useState(false);
 
 	// 1. Fetch Stats
 	const { data: stats, isLoading: statsLoading } = useQuery({
@@ -337,22 +348,82 @@ export default function AdminPage() {
 		setTrialExtension('');
 	};
 
-	const handleOpenManage = (clinic: ClinicWithEmail) => {
+	const handleOpenManage = async (clinic: ClinicWithEmail) => {
 		setSelectedUser(clinic);
-		setPlanSelection((clinic.plan_type as 'starter' | 'pro') || 'pro');
+		setPlanSelection('pro'); // Force pro
 		setStatusSelection((clinic.subscription_status as 'trial' | 'active' | 'expired') || 'trial');
 		setTrialEndDate(clinic.trial_ends_at ? clinic.trial_ends_at.slice(0, 10) : '');
 		setTrialExtension('');
+		setNicheSelection((clinic as any).niche || 'dentistry');
+		
+		setIsFetchingConfig(true);
 		setManageDialogOpen(true);
+
+		try {
+			const { data: config } = await supabase
+				.from('bot_configs' as any)
+				.select('*')
+				.eq('user_id', clinic.id)
+				.maybeSingle();
+
+			if (config) {
+				const typedConfig = config as any;
+				setWorkingHours(typedConfig.working_hours || '');
+				setBotTone(typedConfig.tone || '');
+				setBotLanguages(typedConfig.languages || '');
+				setAdditionalInfo(typedConfig.additional_info || '');
+				setSystemPrompt(typedConfig.system_prompt || '');
+			} else {
+				setWorkingHours('');
+				setBotTone('');
+				setBotLanguages('');
+				setAdditionalInfo('');
+				setSystemPrompt('');
+			}
+		} catch (err) {
+			console.error("Error fetching bot config:", err);
+		} finally {
+			setIsFetchingConfig(false);
+		}
+	};
+
+	const handleImpersonate = async () => {
+		if (!selectedUser) return;
+		
+		try {
+			setIsImpersonating(true);
+			const { data: { session } } = await supabase.auth.getSession();
+			
+			const res = await fetch('/api/admin/impersonate', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${session?.access_token}`
+				},
+				body: JSON.stringify({ targetUserId: selectedUser.id })
+			});
+			
+			const data = await res.json();
+			if (!res.ok) throw new Error(data.error || 'Failed to impersonate');
+			
+			// Open the magic link in a new tab
+			window.open(data.link, '_blank');
+			toast({ title: "Success", description: "Opened session in new window." });
+		} catch (error: any) {
+			toast({ variant: "destructive", title: "Impersonation Failed", description: error.message });
+		} finally {
+			setIsImpersonating(false);
+		}
 	};
 
 	const handleSaveSubscription = async () => {
 		if (!selectedUser) return;
 
 		const updates: Partial<ClinicWithEmail> = {
-			plan_type: planSelection,
+			plan_type: 'pro',
 			subscription_status: statusSelection,
-		};
+			niche: nicheSelection,
+		} as any;
 
 		if (trialEndDate) {
 			updates.trial_ends_at = new Date(trialEndDate).toISOString();
@@ -364,9 +435,25 @@ export default function AdminPage() {
 				updates,
 			});
 
+			// Save Bot Config
+			const { error: configErr } = await supabase
+				.from('bot_configs' as any)
+				.update({
+					working_hours: workingHours,
+					tone: botTone,
+					languages: botLanguages,
+					additional_info: additionalInfo,
+					system_prompt: systemPrompt
+				})
+				.eq('user_id', selectedUser.id);
+				
+			if (configErr) {
+				console.error("[Admin] error saving user bot config", configErr);
+			}
+
 			toast({
-				title: 'Subscription Updated',
-				description: `${selectedUser.clinic_name}'s plan has been updated.`,
+				title: 'User Updated',
+				description: `${selectedUser.clinic_name}'s profile and config have been saved.`,
 			});
 
 			queryClient.invalidateQueries({ queryKey: ['allClinics'] });
@@ -748,18 +835,24 @@ export default function AdminPage() {
 					}
 				}}
 			>
-				<DialogContent className="glass-card border-primary/20">
+				<DialogContent className="glass-card border-primary/20 max-w-2xl max-h-[90vh] overflow-y-auto">
 					<DialogHeader>
-						<DialogTitle>Manage Subscription</DialogTitle>
+						<DialogTitle>Manage User: {selectedUser?.clinic_name}</DialogTitle>
 						<DialogDescription>
-							Update plan, status, or extend trial for {selectedUser?.clinic_name}.
+							Update plan, status, niche, and AI bot configuration.
 						</DialogDescription>
 					</DialogHeader>
-					<div className="space-y-4 py-4">
+					
+					{isFetchingConfig ? (
+						<div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+					) : (
+					<div className="space-y-6 py-4">
+					
+						{/* ROW 1: Plan & Status */}
 						<div className="grid gap-4 md:grid-cols-2">
 							<div className="space-y-2">
 								<Label>Plan</Label>
-								<Input value="Pro" disabled className="bg-secondary/30" />
+								<Input value="Pro (Only Plan Available)" disabled className="bg-secondary/30" />
 							</div>
 							<div className="space-y-2">
 								<Label>Status</Label>
@@ -773,12 +866,13 @@ export default function AdminPage() {
 									<SelectContent>
 										<SelectItem value="trial">Trial</SelectItem>
 										<SelectItem value="active">Active</SelectItem>
-										<SelectItem value="expired">Expired</SelectItem>
+										<SelectItem value="expired">Expired (Blocks AI)</SelectItem>
 									</SelectContent>
 								</Select>
 							</div>
 						</div>
 
+						{/* ROW 2: Trial Dates */}
 						<div className="grid gap-4 md:grid-cols-2">
 							<div className="space-y-2">
 								<Label>Trial Ends At</Label>
@@ -811,18 +905,86 @@ export default function AdminPage() {
 						</div>
 
 						{selectedUser?.trial_ends_at && (
-							<p className="text-xs text-muted-foreground">
+							<p className="text-xs text-muted-foreground mt-0">
 								Current trial end: {new Date(selectedUser.trial_ends_at).toLocaleDateString()}
 							</p>
 						)}
+						
+						<hr className="border-white/10" />
+						
+						{/* ROW 3: Niche */}
+						<div className="space-y-2">
+							<Label className="text-primary font-semibold">User Niche</Label>
+							<Select value={nicheSelection} onValueChange={setNicheSelection}>
+								<SelectTrigger>
+									<SelectValue placeholder="Select Niche" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="dentistry">Dentistry</SelectItem>
+									<SelectItem value="doctor">Medical Doctor</SelectItem>
+									<SelectItem value="beauty_center">Beauty Center</SelectItem>
+									<SelectItem value="immobilier">Real Estate (Coming Soon)</SelectItem>
+									<SelectItem value="car_location">Car Rental (Coming Soon)</SelectItem>
+									<SelectItem value="centre_formation">Training Center (Coming Soon)</SelectItem>
+								</SelectContent>
+							</Select>
+						</div>
+
+						{/* ROW 4: AI Config */}
+						<div className="space-y-4">
+							<Label className="text-primary font-semibold">Bot Configuration</Label>
+							<div className="grid gap-4 md:grid-cols-2">
+								<div className="space-y-2">
+									<Label className="text-xs">Working Hours</Label>
+									<Input value={workingHours} onChange={e => setWorkingHours(e.target.value)} placeholder="Mon-Sat 09:00-18:00" />
+								</div>
+								<div className="space-y-2">
+									<Label className="text-xs">Agent Tone</Label>
+									<Select value={botTone} onValueChange={setBotTone}>
+										<SelectTrigger><SelectValue placeholder="Select Tone" /></SelectTrigger>
+										<SelectContent>
+											<SelectItem value="professional,welcoming">Professional & Welcoming</SelectItem>
+											<SelectItem value="friendly,casual">Friendly & Casual</SelectItem>
+											<SelectItem value="formal,direct">Formal & Direct</SelectItem>
+										</SelectContent>
+									</Select>
+								</div>
+							</div>
+							
+							<div className="space-y-2">
+								<Label className="text-xs">Supported Languages</Label>
+								<Input value={botLanguages} onChange={e => setBotLanguages(e.target.value)} placeholder="e.g. darija, french, english" />
+							</div>
+							
+							<div className="space-y-2">
+								<Label className="text-xs">Additional Info</Label>
+								<Textarea value={additionalInfo} onChange={e => setAdditionalInfo(e.target.value)} placeholder="Any special instructions..." className="min-h-[60px]" />
+							</div>
+							
+							<div className="space-y-2 pt-2">
+								<Label className="text-xs text-yellow-500">Raw Override System Prompt (Optional)</Label>
+								<Textarea 
+									value={systemPrompt} 
+									onChange={e => setSystemPrompt(e.target.value)} 
+									placeholder="Leave empty to auto-generate from the fields above..." 
+									className="min-h-[100px] font-mono text-xs bg-secondary/30" 
+								/>
+								<p className="text-[10px] text-muted-foreground">If filled, this completely overrides the template generator.</p>
+							</div>
+						</div>
+						
 					</div>
+					)}
 					<DialogFooter>
 						<Button
 							variant="outline"
 							onClick={handleCloseManage}
-							className="border-primary/30"
 						>
 							Cancel
+						</Button>
+						<Button onClick={handleImpersonate} disabled={isImpersonating} variant="secondary">
+							{isImpersonating && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+							Login As User
 						</Button>
 						<Button onClick={handleSaveSubscription} disabled={updateSubscriptionMutation.isPending}>
 							{updateSubscriptionMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}

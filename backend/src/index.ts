@@ -22,6 +22,9 @@ app.get('/health', (req, res) => {
 // Webhook endpoint for WAHA messages
 app.post('/waha/webhook', wahaWebhookHandler);
 
+import { adminImpersonateHandler } from './controllers/adminController';
+app.post('/api/admin/impersonate', adminImpersonateHandler);
+
 // Start server
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);

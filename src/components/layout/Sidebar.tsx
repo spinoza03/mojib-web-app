@@ -7,19 +7,19 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 
 const NICHE_CONFIG: Record<NicheType, { label: string; icon: any; active: boolean }> = {
-  dentistry: { label: '🦷 Dentistry', icon: Stethoscope, active: true },
-  doctor: { label: '🩺 Doctor', icon: HeartPulse, active: true },
-  beauty_center: { label: '💆 Beauty', icon: Scissors, active: true },
-  immobilier: { label: '🏠 Real Estate', icon: HomeIcon, active: false },
-  car_location: { label: '🚗 Car Rental', icon: Car, active: false },
-  centre_formation: { label: '🎓 Training', icon: GraduationCap, active: false },
+  dentistry: { label: '🦷 Dentisterie', icon: Stethoscope, active: true },
+  doctor: { label: '🩺 Médecin / Clinique', icon: HeartPulse, active: true },
+  beauty_center: { label: '💆 Centre de Beauté', icon: Scissors, active: true },
+  immobilier: { label: '🏠 Immobilier', icon: HomeIcon, active: false },
+  car_location: { label: '🚗 Location Voitures', icon: Car, active: false },
+  centre_formation: { label: '🎓 Centre Formation', icon: GraduationCap, active: false },
 };
 
 const navItems: Array<{ icon: typeof Home; label: string; path: string; feature: FeatureName }> = [
-  { icon: Home, label: 'Dashboard', path: '/dashboard', feature: 'dashboard' },
-  { icon: Calendar, label: 'Appointments', path: '/appointments', feature: 'calendar-sync' },
-  { icon: Smartphone, label: 'Connect WhatsApp', path: '/connect', feature: 'chat' },
-  { icon: Settings, label: 'Bot Config', path: '/settings', feature: 'advanced-settings' },
+  { icon: Home, label: 'Tableau de Bord', path: '/dashboard', feature: 'dashboard' },
+  { icon: Calendar, label: 'Gérer Rendez-vous', path: '/appointments', feature: 'calendar-sync' },
+  { icon: Smartphone, label: 'Connecter WhatsApp', path: '/connect', feature: 'chat' },
+  { icon: Settings, label: 'Configuration IA', path: '/settings', feature: 'advanced-settings' },
 ];
 
 export function Sidebar() {
@@ -49,20 +49,20 @@ export function Sidebar() {
       const daysLeft = getTrialDaysLeft(profile.trial_ends_at);
       return (
         <Badge className="bg-yellow-500/20 text-yellow-600 border-yellow-500/30">
-          🎁 Trial: {daysLeft} Days Left
+          🎁 Essai : {daysLeft} Jours Restants
         </Badge>
       );
     }
     if (profile.subscription_status === 'active') {
       return (
         <Badge className="bg-green-500/20 text-green-600 border-green-500/30">
-          ✅ PRO Plan
+          ✅ Plan PRO
         </Badge>
       );
     }
     return (
       <Badge className="bg-red-500/20 text-red-600 border-red-500/30">
-        ⛔ Plan Expired
+        ⛔ Expiré
       </Badge>
     );
   };
@@ -165,7 +165,7 @@ export function Sidebar() {
                   location.pathname === '/admin' && 'scale-110'
                 )}
               />
-              <span className="font-medium">Admin Panel</span>
+              <span className="font-medium">Panneau Admin</span>
             </NavLink>
           )}
         </nav>
@@ -183,9 +183,9 @@ export function Sidebar() {
             </Avatar>
 
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{profile?.clinic_name || 'My Clinic'}</p>
+              <p className="text-sm font-medium truncate">{profile?.clinic_name || 'Ma Clinique'}</p>
               <p className="text-xs text-muted-foreground truncate">
-                {isAdmin ? 'Superuser' : 'Clinic Account'}
+                {isAdmin ? 'Superadmin' : 'Compte Client'}
               </p>
             </div>
             <button

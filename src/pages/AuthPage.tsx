@@ -51,7 +51,7 @@ export default function AuthPage() {
   const [selectedNiche, setSelectedNiche] = useState<NicheType>('dentistry');
 
   // Language toggle
-  const [lang, setLang] = useState<'en' | 'fr'>('en');
+  const [lang, setLang] = useState<'en' | 'fr'>('fr');
   
   // Password Reset Mode
   const [resetMode, setResetMode] = useState(false);

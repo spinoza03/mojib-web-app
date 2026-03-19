@@ -97,7 +97,7 @@ export default function SettingsPage() {
 
 			// B. Load Bot Config
 			const { data: botData } = await supabase
-				.from('bot_configs')
+				.from('bot_configs' as any)
 				.select('system_prompt, cooldown_seconds, reminder_message, reminder_rules, working_hours, tone, languages, additional_info')
 				.eq('user_id', user.id)
 				.maybeSingle();
@@ -177,7 +177,7 @@ export default function SettingsPage() {
 
 			// B. Update Bot Config
 			const { data: existingBot } = await supabase
-				.from('bot_configs')
+				.from('bot_configs' as any)
 				.select('user_id')
 				.eq('user_id', user.id)
 				.maybeSingle();
@@ -203,22 +203,22 @@ export default function SettingsPage() {
 			let configError;
 			if (existingBot) {
 				({ error: configError } = await supabase
-					.from('bot_configs')
+					.from('bot_configs' as any)
 					.update(botPayload)
 					.eq('user_id', user.id));
 			} else {
 				({ error: configError } = await supabase
-					.from('bot_configs')
+					.from('bot_configs' as any)
 					.insert({ user_id: user.id, ...botPayload }));
 			}
 
 			if (configError) throw configError;
 
 			await refreshProfile();
-			toast({ title: 'Saved', description: 'Settings updated successfully.' });
+			toast({ title: 'Enregistré', description: 'Paramètres mis à jour avec succès.' });
 
 		} catch (error: any) {
-			toast({ variant: 'destructive', title: 'Error', description: error.message });
+			toast({ variant: 'destructive', title: 'Erreur', description: error.message });
 		} finally {
 			setLoading(false);
 		}
@@ -243,8 +243,8 @@ export default function SettingsPage() {
 		<AppLayout>
 			<div className="space-y-6 max-w-4xl mx-auto">
 				<div>
-					<h1 className="text-3xl font-bold mb-2">Settings</h1>
-					<p className="text-muted-foreground">Manage your identity and AI configuration.</p>
+					<h1 className="text-3xl font-bold mb-2">Paramètres de l'IA</h1>
+					<p className="text-muted-foreground">Gérez votre identité et la configuration de votre assistant IA.</p>
 				</div>
 
 				{/* ============== EXPIRED SUBSCRIPTION BANNER ============== */}
@@ -257,9 +257,9 @@ export default function SettingsPage() {
 								</div>
 								<div className="flex-1 space-y-4">
 									<div>
-										<h3 className="text-lg font-semibold text-red-400">Your Trial / Subscription Has Expired</h3>
+										<h3 className="text-lg font-semibold text-red-400">Votre Période d'Essai / Abonnement a Expiré</h3>
 										<p className="text-sm text-muted-foreground mt-1">
-											To continue using Mojib.AI, please contact us or make a bank transfer with these details:
+											Pour continuer à utiliser Mojib.AI, veuillez nous contacter ou effectuer un virement bancaire avec ces coordonnées :
 										</p>
 									</div>
 									
@@ -293,10 +293,10 @@ export default function SettingsPage() {
 
 									<div className="flex gap-3">
 										<Button
-											onClick={() => window.open(`https://wa.me/212600000000?text=${encodeURIComponent('Hello, I want to activate my Mojib.AI subscription.')}`, '_blank')}
+											onClick={() => window.open(`https://wa.me/212600000000?text=${encodeURIComponent('Bonjour, je souhaite activer mon abonnement Mojib.AI.')}`, '_blank')}
 											className="bg-[#25D366] hover:bg-[#25D366]/90 text-black font-medium"
 										>
-											Contact on WhatsApp
+											Contacter sur WhatsApp
 										</Button>
 									</div>
 								</div>
@@ -312,18 +312,18 @@ export default function SettingsPage() {
 							<div className="h-16 w-16 mx-auto rounded-2xl bg-yellow-500/20 flex items-center justify-center">
 								<Bot className="h-8 w-8 text-yellow-500" />
 							</div>
-							<h3 className="text-xl font-bold text-yellow-400">🚧 Coming Soon</h3>
+							<h3 className="text-xl font-bold text-yellow-400">🚧 À Venir</h3>
 							<p className="text-muted-foreground max-w-md mx-auto">
-								AI bot configuration for your industry is under development. 
-								The calendar and appointments features are available now. 
-								Contact support for more information.
+								La configuration du bot IA pour votre secteur est en cours de développement. 
+								Les fonctionnalités de calendrier et de rendez-vous sont disponibles dès maintenant. 
+								Contactez le support pour plus d'informations.
 							</p>
 							<Button
 								variant="outline"
-								onClick={() => window.open(`https://wa.me/212600000000?text=${encodeURIComponent('Hello, I want to know when my industry will be supported on Mojib.AI.')}`, '_blank')}
+								onClick={() => window.open(`https://wa.me/212600000000?text=${encodeURIComponent('Bonjour, je veux savoir quand mon industrie sera disponible sur Mojib.AI.')}`, '_blank')}
 								className="border-yellow-500/30 text-yellow-500 hover:bg-yellow-500/10"
 							>
-								Contact Support
+								Contacter le Support
 							</Button>
 						</CardContent>
 					</Card>
@@ -338,7 +338,7 @@ export default function SettingsPage() {
 								<CardHeader>
 									<CardTitle className="flex items-center gap-2">
 										<Building2 className="h-5 w-5 text-primary" />
-										Clinic Identity
+										Identité de la Clinique / Entreprise
 									</CardTitle>
 								</CardHeader>
 								<CardContent className="space-y-6">
@@ -354,7 +354,7 @@ export default function SettingsPage() {
 											<Label htmlFor="logo-upload" className="cursor-pointer">
 												<div className="flex items-center gap-2 px-4 py-2 bg-secondary hover:bg-secondary/80 rounded-md text-sm font-medium transition-colors border border-input">
 													{uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-													{uploading ? 'Uploading...' : 'Upload Logo'}
+													{uploading ? 'Téléchargement...' : 'Changer le Logo'}
 												</div>
 											</Label>
 											<Input id="logo-upload" type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} disabled={uploading} />
@@ -362,11 +362,11 @@ export default function SettingsPage() {
 									</div>
 
 									<div className="space-y-2">
-										<Label>Clinic / Business Name</Label>
+										<Label>Nom de la Clinique / Entreprise</Label>
 										<Input
 											value={clinicName}
 											onChange={(e) => setClinicName(e.target.value)}
-											placeholder="e.g. Smile Dental"
+											placeholder="ex. Centre Dentaire Sourire"
 											disabled={isSubscriptionExpired}
 										/>
 									</div>
@@ -378,21 +378,21 @@ export default function SettingsPage() {
 								<CardHeader>
 									<CardTitle className="flex items-center gap-2">
 										<Bot className="h-5 w-5 text-primary" />
-										AI Agent Configuration
+										Configuration de l'Agent IA
 									</CardTitle>
 									<CardDescription>
-										Configure how your AI receptionist behaves. No need to write prompts — just fill in the details.
+										Configurez le comportement de votre réceptionniste IA. Pas besoin d'écrire de prompts compliqués !
 									</CardDescription>
 								</CardHeader>
 								<CardContent className="space-y-4">
 									<div className="flex items-center justify-between mb-2">
 										<div className="flex items-center gap-2">
-											<Label htmlFor="ai-toggle" className="text-sm font-medium">Enable AI</Label>
+											<Label htmlFor="ai-toggle" className="text-sm font-medium">Activer l'IA</Label>
 											{isSubscriptionExpired && (
 												<TooltipProvider>
 													<Tooltip>
 														<TooltipTrigger><Info className="h-4 w-4 text-destructive" /></TooltipTrigger>
-														<TooltipContent>Plan expired.</TooltipContent>
+														<TooltipContent>Abonnement expiré.</TooltipContent>
 													</Tooltip>
 												</TooltipProvider>
 											)}
@@ -402,27 +402,27 @@ export default function SettingsPage() {
 
 									{/* Working Hours */}
 									<div className="space-y-2">
-										<Label>Working Hours</Label>
+										<Label>Horaires de Travail</Label>
 										<Input
 											value={workingHours}
 											onChange={(e) => setWorkingHours(e.target.value)}
-											placeholder="e.g. Mon-Sat 09:00-18:00"
+											placeholder="ex. Lun-Sam 09:00-18:00"
 											disabled={isSubscriptionExpired}
 										/>
-										<p className="text-xs text-muted-foreground">The hours your clinic is open for appointments.</p>
+										<p className="text-xs text-muted-foreground">Les heures d'ouverture de votre clinique.</p>
 									</div>
 
 									{/* Tone */}
 									<div className="space-y-2">
-										<Label>Agent Tone</Label>
+										<Label>Ton de l'Agent</Label>
 										<Select value={tone} onValueChange={setTone} disabled={isSubscriptionExpired}>
 											<SelectTrigger>
 												<SelectValue />
 											</SelectTrigger>
 											<SelectContent>
-												<SelectItem value="professional,welcoming">Professional & Welcoming</SelectItem>
-												<SelectItem value="friendly,casual">Friendly & Casual</SelectItem>
-												<SelectItem value="formal,direct">Formal & Direct</SelectItem>
+												<SelectItem value="professional,welcoming">Professionnel & Accueillant</SelectItem>
+												<SelectItem value="friendly,casual">Amical & Décontracté</SelectItem>
+												<SelectItem value="formal,direct">Formel & Direct</SelectItem>
 											</SelectContent>
 										</Select>
 									</div>
@@ -431,7 +431,7 @@ export default function SettingsPage() {
 									<div className="space-y-2">
 										<Label className="flex items-center gap-2">
 											<Languages className="h-4 w-4" />
-											Bot Languages
+											Langues du Bot
 										</Label>
 										<div className="flex flex-wrap gap-2">
 											{LANGUAGE_OPTIONS.map(lang => (
@@ -450,7 +450,7 @@ export default function SettingsPage() {
 												</button>
 											))}
 										</div>
-										<p className="text-xs text-muted-foreground">Default: Darija (Arabic letters) + French</p>
+										<p className="text-xs text-muted-foreground">Par défaut : Darija (lettres arabes) + Français</p>
 									</div>
 								</CardContent>
 							</Card>
@@ -461,10 +461,10 @@ export default function SettingsPage() {
 							<CardHeader>
 								<CardTitle className="flex items-center gap-2">
 									<Info className="h-5 w-5 text-primary" />
-									Additional Info for the AI
+									Informations Supplémentaires (IA)
 								</CardTitle>
 								<CardDescription>
-									Add details the bot should know: prices, specialties, accepted insurance (CNSS/CNOPS), special procedures, etc.
+									Ajoutez des détails : tarifs, spécialités, assurance (CNSS/CNOPS), ou autres informations clés.
 								</CardDescription>
 							</CardHeader>
 							<CardContent className="space-y-4">
@@ -472,12 +472,12 @@ export default function SettingsPage() {
 									value={additionalInfo}
 									onChange={(e) => setAdditionalInfo(e.target.value)}
 									className="min-h-[150px] font-mono text-sm bg-secondary/50 leading-relaxed"
-									placeholder={`Example:\n- Consultation: 200 DH\n- Détartrage: 300 DH\n- We accept CNSS\n- Specialties: Orthodontie, Implantologie\n- Free parking available`}
+									placeholder={`Exemple:\n- Consultation: 200 DH\n- Détartrage: 300 DH\n- Nous acceptons la CNSS\n- Spécialités: Orthodontie, Implantologie`}
 									disabled={isSubscriptionExpired}
 								/>
 								<Button onClick={handleSave} disabled={loading || isSubscriptionExpired} className="w-full">
 									<Save className="mr-2 h-4 w-4" />
-									{loading ? 'Saving...' : 'Save Configuration'}
+									{loading ? 'Enregistrement...' : 'Enregistrer la Configuration'}
 								</Button>
 							</CardContent>
 						</Card>
@@ -489,14 +489,14 @@ export default function SettingsPage() {
 					<CardHeader>
 						<CardTitle className="flex items-center gap-2">
 							<Clock className="h-5 w-5 text-primary" />
-							Bot Behavior
+							Comportement du Bot
 						</CardTitle>
-						<CardDescription>Control how the AI agent responds.</CardDescription>
+						<CardDescription>Contrôlez les délais de réponse de l'IA.</CardDescription>
 					</CardHeader>
 					<CardContent className="space-y-4">
 						<div className="space-y-3">
 							<div className="flex items-center justify-between">
-								<Label>Cooldown Period (seconds)</Label>
+								<Label>Délai d'attente / Cooldown (secondes)</Label>
 								<span className="text-sm font-bold text-primary bg-primary/10 px-3 py-1 rounded-full">{cooldownSeconds}s</span>
 							</div>
 							<Slider
@@ -507,7 +507,7 @@ export default function SettingsPage() {
 								step={10}
 								disabled={isSubscriptionExpired}
 							/>
-							<p className="text-xs text-muted-foreground">After a manual human reply, the AI waits this long before responding again.</p>
+							<p className="text-xs text-muted-foreground">Temps de pause avant la reprise automatique de l'IA après une réponse humaine manuelle.</p>
 						</div>
 					</CardContent>
 				</Card>
@@ -517,14 +517,14 @@ export default function SettingsPage() {
 					<CardHeader>
 						<CardTitle className="flex items-center gap-2">
 							<Bell className="h-5 w-5 text-primary" />
-							Appointment Reminders
+							Rappels de Rendez-vous
 						</CardTitle>
-						<CardDescription>Configure automatic WhatsApp reminders for upcoming appointments.</CardDescription>
+						<CardDescription>Configurez les rappels automatiques WhatsApp pour les prochains rendez-vous.</CardDescription>
 					</CardHeader>
 					<CardContent className="space-y-6">
 						{/* Reminder Rules */}
 						<div className="space-y-3">
-							<Label>Reminder Schedule</Label>
+							<Label>Planification des Rappels</Label>
 							{reminderRules.map((rule, idx) => (
 								<div key={idx} className="flex items-center gap-2 p-3 rounded-lg border bg-secondary/30">
 									<Switch
@@ -567,11 +567,11 @@ export default function SettingsPage() {
 										</SelectTrigger>
 										<SelectContent>
 											<SelectItem value="minutes">minutes</SelectItem>
-											<SelectItem value="hours">hours</SelectItem>
-											<SelectItem value="days">days</SelectItem>
+											<SelectItem value="heures">heures</SelectItem>
+											<SelectItem value="jours">jours</SelectItem>
 										</SelectContent>
 									</Select>
-									<span className="text-sm text-muted-foreground">before</span>
+									<span className="text-sm text-muted-foreground">avant</span>
 									<Button
 										variant="ghost"
 										size="icon"
@@ -590,36 +590,35 @@ export default function SettingsPage() {
 								onClick={() => setReminderRules([...reminderRules, { minutes_before: 30, enabled: true, unit: 'minutes', value: 30 }])}
 								disabled={isSubscriptionExpired}
 							>
-								<Plus className="h-4 w-4" /> Add Reminder
+								<Plus className="h-4 w-4" /> Ajouter un Rappel
 							</Button>
 						</div>
 
 						{/* Reminder Message */}
 						<div className="space-y-2">
-							<Label>Reminder Message Template</Label>
+							<Label>Modèle du Message de Rappel</Label>
 							<Textarea
 								value={reminderMessage}
 								onChange={(e) => setReminderMessage(e.target.value)}
 								className="min-h-[100px] font-mono text-sm bg-secondary/50"
+								placeholder={`مرحبا {patient_name}، هاد تذكير بالموعد ديالك في {clinic_name} نهار {time}. نتمناو نشوفوك!`}
 								disabled={isSubscriptionExpired}
 							/>
-							<div className="flex gap-2 flex-wrap">
-								<span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full font-mono">{'{patient_name}'}</span>
-								<span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full font-mono">{'{clinic_name}'}</span>
-								<span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full font-mono">{'{time}'}</span>
-							</div>
+							<p className="text-xs text-muted-foreground mt-2">
+								Variables disponibles : <code>{'{patient_name}'}</code>, <code>{'{clinic_name}'}</code>, <code>{'{time}'}</code>
+							</p>
 						</div>
 
 						<Button onClick={handleSave} disabled={loading || isSubscriptionExpired} className="w-full">
 							<Save className="mr-2 h-4 w-4" />
-							{loading ? 'Saving...' : 'Save Settings'}
+							{loading ? 'Enregistrement...' : 'Enregistrer la Configuration'}
 						</Button>
 					</CardContent>
 				</Card>
 
 				{/* Subscription Section */}
 				<Card className="glass-card">
-					<CardHeader><CardTitle className="flex items-center gap-2"><CreditCard className="h-5 w-5 text-primary" /> Subscription</CardTitle></CardHeader>
+					<CardHeader><CardTitle className="flex items-center gap-2"><CreditCard className="h-5 w-5 text-primary" /> Abonnement</CardTitle></CardHeader>
 					<CardContent className="space-y-6">
 						<div className="grid gap-4 md:grid-cols-3">
 							<div className="rounded-lg border p-4 bg-secondary/20">
@@ -627,12 +626,12 @@ export default function SettingsPage() {
 								<p className="text-lg font-semibold capitalize">{planType}</p>
 							</div>
 							<div className="rounded-lg border p-4 bg-secondary/20">
-								<p className="text-sm text-muted-foreground">Status</p>
+								<p className="text-sm text-muted-foreground">Statut</p>
 								<p className="text-lg font-semibold capitalize">{subscriptionStatus}</p>
 							</div>
 							<div className="rounded-lg border p-4 bg-secondary/20">
-								<p className="text-sm text-muted-foreground">Trial Left</p>
-								<p className="text-lg font-semibold">{subscriptionStatus === 'trial' ? `${getTrialDaysLeft(trialEndsAt)} days` : 'N/A'}</p>
+								<p className="text-sm text-muted-foreground">Essai restant</p>
+								<p className="text-lg font-semibold">{subscriptionStatus === 'trial' ? `${getTrialDaysLeft(trialEndsAt)} jours` : 'N/A'}</p>
 							</div>
 						</div>
 
@@ -640,7 +639,7 @@ export default function SettingsPage() {
 						<div className="p-4 rounded-xl bg-secondary/20 border border-border/50 space-y-3">
 							<h4 className="text-sm font-semibold flex items-center gap-2">
 								<CreditCard className="h-4 w-4 text-primary" />
-								Payment by Bank Transfer
+								Paiement par Virement Bancaire
 							</h4>
 							<div className="grid gap-2 font-mono text-sm">
 								{[
@@ -672,10 +671,10 @@ export default function SettingsPage() {
 						</div>
 
 						<Button
-							onClick={() => window.open(`https://wa.me/212600000000?text=${encodeURIComponent('Hello, I want to activate/renew my Mojib.AI subscription.')}`, '_blank')}
+							onClick={() => window.open(`https://wa.me/212600000000?text=${encodeURIComponent('Bonjour, je souhaite activer/renouveler mon abonnement Mojib.AI.')}`, '_blank')}
 							className="w-full"
 						>
-							Contact for Activation
+							Contacter pour Activation
 						</Button>
 					</CardContent>
 				</Card>

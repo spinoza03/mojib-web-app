@@ -82,7 +82,7 @@ export default function DashboardPage() {
 
   // Greeting based on time
   const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  const greeting = hour < 12 ? 'Bonjour' : hour < 18 ? 'Bon après-midi' : 'Bonsoir';
 
   return (
     <AppLayout>
@@ -91,19 +91,19 @@ export default function DashboardPage() {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">
-              {greeting}, {profile?.clinic_name || 'Doctor'}
+              {greeting}, {profile?.clinic_name || 'Docteur'}
             </h1>
             <p className="text-muted-foreground mt-1">
-              Here is what's happening in your clinic today.
+              Voici ce qui se passe dans votre clinique aujourd'hui.
             </p>
           </div>
           <div className="flex gap-3">
             <Button onClick={() => navigate('/appointments')} className="bg-primary hover:bg-primary/90">
               <Calendar className="mr-2 h-4 w-4" />
-              View Calendar
+              Voir Calendrier
             </Button>
             <Button variant="outline" onClick={() => navigate('/settings')}>
-              Manage Bot
+              Gérer l'IA
             </Button>
           </div>
         </div>
@@ -115,20 +115,20 @@ export default function DashboardPage() {
               <div className="h-16 w-16 mx-auto rounded-2xl bg-yellow-500/20 flex items-center justify-center">
                 <Bot className="h-8 w-8 text-yellow-500" />
               </div>
-              <h3 className="text-xl font-bold text-yellow-400">🚧 AI Features Coming Soon</h3>
+              <h3 className="text-xl font-bold text-yellow-400">🚧 Fonctionnalités IA à venir</h3>
               <p className="text-muted-foreground max-w-md mx-auto">
-                AI-powered features for your industry are under development. Calendar and appointment management are available now!
+                Les fonctionnalités basées sur l'IA pour votre secteur sont en cours de développement. La gestion du calendrier et des rendez-vous est disponible dès maintenant !
               </p>
               <div className="flex gap-3 justify-center">
                 <Button onClick={() => navigate('/appointments')} className="bg-primary hover:bg-primary/90">
-                  <Calendar className="mr-2 h-4 w-4" /> View Calendar
+                  <Calendar className="mr-2 h-4 w-4" /> Voir Calendrier
                 </Button>
                 <Button
                   variant="outline"
-                  onClick={() => window.open(`https://wa.me/212600000000?text=${encodeURIComponent('Hello, I want to know when my industry will be supported on Mojib.AI.')}`, '_blank')}
+                  onClick={() => window.open(`https://wa.me/212600000000?text=${encodeURIComponent('Bonjour, je veux savoir quand mon industrie sera disponible sur Mojib.AI.')}`, '_blank')}
                   className="border-yellow-500/30 text-yellow-500 hover:bg-yellow-500/10"
                 >
-                  <MessageSquare className="mr-2 h-4 w-4" /> Contact Support
+                  <MessageSquare className="mr-2 h-4 w-4" /> Contacter le Support
                 </Button>
               </div>
             </CardContent>
@@ -139,7 +139,7 @@ export default function DashboardPage() {
         <div className="grid gap-4 md:grid-cols-3">
           <Card className="glass-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Appointments</CardTitle>
+              <CardTitle className="text-sm font-medium">Total Rendez-vous</CardTitle>
               <Activity className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
@@ -148,13 +148,13 @@ export default function DashboardPage() {
               ) : (
                 <div className="text-2xl font-bold">{stats.totalAppointments}</div>
               )}
-              <p className="text-xs text-muted-foreground mt-1">All time bookings</p>
+              <p className="text-xs text-muted-foreground mt-1">Réservations depuis toujours</p>
             </CardContent>
           </Card>
 
           <Card className="glass-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Upcoming</CardTitle>
+              <CardTitle className="text-sm font-medium">À Venir</CardTitle>
               <Clock className="h-4 w-4 text-blue-500" />
             </CardHeader>
             <CardContent>
@@ -163,7 +163,7 @@ export default function DashboardPage() {
               ) : (
                 <div className="text-2xl font-bold">{stats.upcomingAppointments}</div>
               )}
-              <p className="text-xs text-muted-foreground mt-1">Scheduled for future</p>
+              <p className="text-xs text-muted-foreground mt-1">Planifiés pour le futur</p>
             </CardContent>
           </Card>
 
@@ -178,7 +178,7 @@ export default function DashboardPage() {
               ) : (
                 <div className="text-2xl font-bold">{stats.totalPatients}</div>
               )}
-              <p className="text-xs text-muted-foreground mt-1">Unique contacts</p>
+              <p className="text-xs text-muted-foreground mt-1">Contacts uniques</p>
             </CardContent>
           </Card>
         </div>
@@ -187,9 +187,9 @@ export default function DashboardPage() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
           <Card className="col-span-4 glass-card">
             <CardHeader>
-              <CardTitle>Upcoming Appointments</CardTitle>
+              <CardTitle>Prochains Rendez-vous</CardTitle>
               <CardDescription>
-                Your next 5 scheduled visits.
+                Vos 5 prochaines visites planifiées.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -199,9 +199,9 @@ export default function DashboardPage() {
                 </div>
               ) : upcomingList.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  <p>No upcoming appointments found.</p>
+                  <p>Aucun rendez-vous à venir.</p>
                   <Button variant="link" onClick={() => navigate('/appointments')} className="mt-2">
-                    Schedule one now
+                    En planifier un maintenant
                   </Button>
                 </div>
               ) : (
@@ -216,9 +216,9 @@ export default function DashboardPage() {
                           {apt.patient_name ? apt.patient_name.charAt(0).toUpperCase() : 'U'}
                         </div>
                         <div>
-                          <p className="font-medium">{apt.patient_name || 'Unknown Patient'}</p>
+                          <p className="font-medium">{apt.patient_name || 'Patient Inconnu'}</p>
                           <p className="text-sm text-muted-foreground">
-                            {format(new Date(apt.start_time), 'PPP')} at {format(new Date(apt.start_time), 'p')}
+                            {format(new Date(apt.start_time), 'dd/MM/yyyy')} à {format(new Date(apt.start_time), 'HH:mm')}
                           </p>
                         </div>
                       </div>
@@ -237,21 +237,21 @@ export default function DashboardPage() {
           {/* Quick Actions / Promo Card */}
           <Card className="col-span-3 glass-card bg-gradient-to-br from-primary/10 to-transparent border-primary/20">
              <CardHeader>
-               <CardTitle>Connect WhatsApp</CardTitle>
+               <CardTitle>Connecter WhatsApp</CardTitle>
                <CardDescription>
-                 Is your AI receptionist active?
+                 Votre réceptionniste IA est-elle active ?
                </CardDescription>
              </CardHeader>
              <CardContent className="space-y-4">
                <div className="flex items-center gap-2">
                   <div className={`h-3 w-3 rounded-full ${profile?.whatsapp_status === 'connected' ? 'bg-green-500' : 'bg-red-500'}`} />
-                  <span className="font-medium capitalize">{profile?.whatsapp_status || 'Disconnected'}</span>
+                  <span className="font-medium capitalize">{profile?.whatsapp_status || 'Déconnectée'}</span>
                </div>
                <p className="text-sm text-muted-foreground">
-                 Scan the QR code to let the AI handle your patient bookings automatically 24/7.
+                 Scannez le code QR pour laisser l'IA gérer automatiquement vos réservations 24h/24 et 7j/7.
                </p>
                <Button onClick={() => navigate('/connect')} className="w-full">
-                 Check Connection <ArrowRight className="ml-2 h-4 w-4" />
+                 Vérifier la Connexion <ArrowRight className="ml-2 h-4 w-4" />
                </Button>
              </CardContent>
           </Card>

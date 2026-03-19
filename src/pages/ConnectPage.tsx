@@ -40,8 +40,9 @@ export default function ConnectPage() {
 
 			if (!profile) return;
 
-			const dbStatus = profile.whatsapp_status as any;
-			const sessionName = profile.waha_session_name;
+			const typedProfile = profile as any;
+			const dbStatus = typedProfile.whatsapp_status;
+			const sessionName = typedProfile.waha_session_name;
 			setWahaSessionName(sessionName);
 
 			if (sessionName) {
@@ -84,8 +85,8 @@ export default function ConnectPage() {
 								if (duplicateUser) {
 									toast({
 										variant: "destructive",
-										title: "Duplicate Number",
-										description: "This number is already linked to another account. Please disconnect it from the old account first."
+										title: "Numéro en doublon",
+										description: "Ce numéro est déjà lié à un autre compte. Veuillez d'abord le déconnecter."
 									});
 									await handleCancel();
 									return;
@@ -100,7 +101,7 @@ export default function ConnectPage() {
 
 							await supabase.from('profiles').update(updateData).eq('id', user.id);
 
-							toast({ title: "Connected!", description: `Linked to +${realPhoneNumber || 'WhatsApp'}` });
+							toast({ title: "Connecté !", description: `Lié à +${realPhoneNumber || 'WhatsApp'}` });
 							return;
 						}
 
@@ -263,7 +264,7 @@ export default function ConnectPage() {
 				if (existing.status === 'WORKING') {
 					setStatus('connected');
 					await supabase.from('profiles').update({ whatsapp_status: 'connected' }).eq('id', user?.id);
-					toast({ title: "Already Linked", description: "System is already online." });
+					toast({ title: "Déjà Lié", description: "Le système est déjà en ligne." });
 					setIsLoading(false);
 					return;
 				} else {
@@ -322,7 +323,7 @@ export default function ConnectPage() {
 
 		} catch (error) {
 			console.error("Start error:", error);
-			toast({ variant: "destructive", title: "Connection Failed", description: "Could not reach WhatsApp server." });
+			toast({ variant: "destructive", title: "Connexion Échouée", description: "Impossible de joindre le serveur WhatsApp." });
 		} finally {
 			setIsLoading(false);
 		}
@@ -334,7 +335,7 @@ export default function ConnectPage() {
 		setIsLoading(true);
 		setQrCode(null);
 		setStatus('scanning');
-		toast({ description: "Forcing session restart..." });
+		toast({ description: "Redémarrage forcé de la session..." });
 		try {
 			// 1. Force stop existing session
 			await fetch(`${WAHA_URL}/api/sessions/${wahaSessionName}/stop`, {
@@ -387,7 +388,7 @@ export default function ConnectPage() {
 
 		} catch (error) {
 			console.error("Restart error:", error);
-			toast({ variant: "destructive", title: "Restart Failed", description: "Could not restart the session." });
+			toast({ variant: "destructive", title: "Échec du Redémarrage", description: "Impossible de redémarrer la session." });
 		} finally {
 			setIsLoading(false);
 		}
@@ -420,15 +421,15 @@ export default function ConnectPage() {
 	const handleManualRefresh = () => {
 		fetchQR();
 		setTimeLeft(REFRESH_INTERVAL);
-		toast({ description: "Checking for new code..." });
+		toast({ description: "Vérification du nouveau code..." });
 	};
 
 	return (
 		<AppLayout>
 			<div className="max-w-4xl mx-auto space-y-8">
 				<div className="text-center">
-					<h1 className="text-3xl font-bold mb-2">WhatsApp Connection</h1>
-					<p className="text-muted-foreground">Scan the QR code to link your clinic's WhatsApp.</p>
+					<h1 className="text-3xl font-bold mb-2">Connexion WhatsApp</h1>
+					<p className="text-muted-foreground">Scannez le code QR pour lier le compte WhatsApp de votre clinique.</p>
 				</div>
 
 				<Card className="glass-card border-primary/20 overflow-hidden shadow-2xl">
@@ -441,32 +442,32 @@ export default function ConnectPage() {
 									<div className="flex items-start gap-4 p-4 rounded-lg bg-white/5 border border-white/10">
 										<div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary shrink-0">1</div>
 										<div>
-											<p className="font-medium text-foreground">Open WhatsApp</p>
-											<p className="text-sm text-muted-foreground">Go to Settings on your mobile.</p>
+											<p className="font-medium text-foreground">Ouvrez WhatsApp</p>
+											<p className="text-sm text-muted-foreground">Allez dans Paramètres sur votre mobile.</p>
 										</div>
 									</div>
 									<div className="flex items-start gap-4 p-4 rounded-lg bg-white/5 border border-white/10">
 										<div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary shrink-0">2</div>
 										<div>
-											<p className="font-medium text-foreground">Tap "Linked Devices"</p>
-											<p className="text-sm text-muted-foreground">Select "Link a Device".</p>
+											<p className="font-medium text-foreground">Appuyez sur "Appareils liés"</p>
+											<p className="text-sm text-muted-foreground">Sélectionnez "Lier un appareil".</p>
 										</div>
 									</div>
 									<div className="flex items-start gap-4 p-4 rounded-lg bg-white/5 border border-white/10">
 										<div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary shrink-0">3</div>
 										<div>
-											<p className="font-medium text-foreground">Scan QR Code</p>
-											<p className="text-sm text-muted-foreground">Point your camera at the screen.</p>
+											<p className="font-medium text-foreground">Scannez le code QR</p>
+											<p className="text-sm text-muted-foreground">Pointez votre caméra vers l'écran.</p>
 										</div>
 									</div>
 								</div>
 
 								<div className="pt-4 border-t border-white/5">
-									<p className="text-xs text-muted-foreground mb-2 uppercase tracking-wider font-semibold">Current Status</p>
+									<p className="text-xs text-muted-foreground mb-2 uppercase tracking-wider font-semibold">Statut Actuel</p>
 									<div className="flex items-center gap-3">
-										{status === 'connected' && <Badge className="bg-green-500 px-3 py-1">Online & Ready</Badge>}
-										{status === 'scanning' && <Badge variant="secondary" className="animate-pulse px-3 py-1">Waiting for Scan...</Badge>}
-										{status === 'disconnected' && <Badge variant="destructive" className="px-3 py-1">Offline</Badge>}
+										{status === 'connected' && <Badge className="bg-green-500 px-3 py-1">En Ligne & Prêt</Badge>}
+										{status === 'scanning' && <Badge variant="secondary" className="animate-pulse px-3 py-1">En attente de scan...</Badge>}
+										{status === 'disconnected' && <Badge variant="destructive" className="px-3 py-1">Hors ligne</Badge>}
 									</div>
 								</div>
 							</div>
@@ -480,11 +481,11 @@ export default function ConnectPage() {
 											<CheckCircle2 className="h-12 w-12 text-green-500" />
 										</div>
 										<div>
-											<h3 className="text-xl font-bold text-white">WhatsApp Linked</h3>
-											<p className="text-sm text-white/60 mt-1">Your AI receptionist is active.</p>
+											<h3 className="text-xl font-bold text-white">WhatsApp Lié</h3>
+											<p className="text-sm text-white/60 mt-1">Votre réceptionniste IA est actif.</p>
 										</div>
 										<Button variant="destructive" onClick={handleCancel} disabled={isLoading} className="w-full max-w-xs">
-											Disconnect
+											Déconnecter
 										</Button>
 									</div>
 								) : status === 'scanning' ? (
@@ -511,9 +512,9 @@ export default function ConnectPage() {
 											<div className="flex justify-between items-center text-xs text-white/70">
 												<span className="flex items-center gap-1.5">
 													<Timer className="h-3.5 w-3.5" />
-													Auto-refresh in {timeLeft}s
+													Actualisation auto dans {timeLeft}s
 												</span>
-												<span className="text-[10px] uppercase tracking-wider opacity-50">Secured</span>
+												<span className="text-[10px] uppercase tracking-wider opacity-50">Sécurisé</span>
 											</div>
 
 											<Progress value={(timeLeft / REFRESH_INTERVAL) * 100} className="h-1.5" />
@@ -527,7 +528,7 @@ export default function ConnectPage() {
 													className="w-full text-xs h-8 bg-white/5 hover:bg-white/10 border-white/10 text-white"
 												>
 													<RefreshCw className={`mr-2 h-3 w-3 ${isRefreshing ? 'animate-spin' : ''}`} />
-													Refresh Now
+													Actualiser
 												</Button>
 												<Button
 													variant="ghost"
@@ -536,7 +537,7 @@ export default function ConnectPage() {
 													className="w-full text-xs h-8 text-red-400 hover:text-red-300 hover:bg-red-500/10"
 												>
 													<XCircle className="mr-2 h-3 w-3" />
-													Cancel
+													Annuler
 												</Button>
 											</div>
 											<div className="pt-2">
@@ -548,7 +549,7 @@ export default function ConnectPage() {
 													className="w-full text-xs h-8 bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/20 text-blue-400"
 												>
 													<RefreshCw className={`mr-2 h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
-													Force Restart Session
+													Forcer le Redémarrage de la Session
 												</Button>
 											</div>
 										</div>
@@ -560,8 +561,8 @@ export default function ConnectPage() {
 											<Smartphone className="h-10 w-10 text-white/40" />
 										</div>
 										<div>
-											<h3 className="text-lg font-medium text-white">No Active Session</h3>
-											<p className="text-sm text-white/50 mt-1">Start a session to generate a secure QR code.</p>
+											<h3 className="text-lg font-medium text-white">Aucune Session Active</h3>
+											<p className="text-sm text-white/50 mt-1">Démarrez une session pour générer un code QR sécurisé.</p>
 										</div>
 										<Button
 											onClick={handleStartSession}
@@ -569,7 +570,7 @@ export default function ConnectPage() {
 											className="w-full max-w-xs bg-[#25D366] hover:bg-[#25D366]/90 text-black font-bold h-11"
 										>
 											{isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <QrCode className="mr-2 h-5 w-5" />}
-											Start Connection
+											Démarrer la Connexion
 										</Button>
 									</div>
 								)}

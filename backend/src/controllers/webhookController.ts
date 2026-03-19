@@ -57,13 +57,23 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
             config = await getClinicBotSettings(receiving_number);
         }
 
-        // If clinic config is activated for this number and status is pro/trial, route to DOCTOR
-        if (config && (config.subscription_status === 'pro' || config.subscription_status === 'trial' || config.subscription_status === 'active')) {
+        // If clinic config is activated for this number, we check their subscription
+        if (config) {
+            const isTrial = config.subscription_status === 'trial';
+            const isActive = config.subscription_status === 'active' || config.subscription_status === 'pro';
+            // Note: to accurately check trial expiration, we assume the frontend/backend sync handles it, 
+            // but if it's explicitly 'expired', we block it entirely.
+            if (!isTrial && !isActive) {
+                console.log(`[Subscription Expired] Ignoring message for session: ${config.waha_session_name}`);
+                res.status(200).send('Ignored: Subscription Expired');
+                return;
+            }
             isDoctorBot = true;
             sessionName = config.waha_session_name;
         } else {
-            // Fallback to Anass persona
-            config = await getBotSettings(phone_number, 'Anass');
+            console.log(`[Unknown Session] No config found for receiving number: ${receiving_number}`);
+            res.status(200).send('Ignored: Unknown session');
+            return;
         }
 
         const cooldown_seconds = config.cooldown_seconds || 60;
