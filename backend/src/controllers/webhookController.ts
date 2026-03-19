@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
-import { getBotSettings, getChatHistory, saveMessage, getClinicBotSettings, checkAvailability, bookAppointment } from '../services/supabase';
+import { getBotSettings, getChatHistory, saveMessage, getClinicBotSettingsBySession, checkAvailability, bookAppointment } from '../services/supabase';
 import { generateResponse, generateDoctorResponse, transcribeAudio, DOCTOR_TOOLS } from '../services/openai';
-import { sendText, startTyping } from '../services/waha';
+import { sendText, startTyping, downloadMedia } from '../services/waha';
 import OpenAI from 'openai';
 
 // Interface based on WAHA webhook payload structure
@@ -53,11 +53,9 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
         let config: any = null;
         let sessionName: string | undefined = undefined;
 
-        // payload.me has info about the receiving session
-        const receiving_number = (payload.me && typeof payload.me === 'object') ? payload.me.id : '';
-
-        if (receiving_number) {
-            config = await getClinicBotSettings(receiving_number);
+        // payload.session has the exact unique session name for this clinic
+        if (payload.session) {
+            config = await getClinicBotSettingsBySession(payload.session);
         }
 
         // If clinic config is activated for this number, we check their subscription
@@ -74,7 +72,7 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
             isDoctorBot = true;
             sessionName = config.waha_session_name;
         } else {
-            console.log(`[Unknown Session] No config found for receiving number: ${receiving_number}`);
+            console.log(`[Unknown Session] No config found for session: ${payload.session}`);
             res.status(200).send('Ignored: Unknown session');
             return;
         }
@@ -129,21 +127,46 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
         }
 
         // 3. Multimodal & Media Handling
-        let textContent = message.body;
+        let textContent = message.body || '';
         let imageUrl: string | undefined = undefined;
+
+        // Extract patient phone to pass to AI
+        const patientPhone = phone_number.split('@')[0];
 
         if (message.hasMedia) {
             const mediaType = message._data?.type;
             if (mediaType === 'ptt' || mediaType === 'audio') {
-                console.log('Received audio message, needs processing');
-                // const audioFilePath = await waha.downloadMedia(message.id);
-                // textContent = await transcribeAudio(audioFilePath);
+                console.log('Received audio message, downloading...');
+                let msgId = message.id;
+                // Sometimes WAHA message.id is an object, but we mapped it to string in WAMessage. Let's ensure it's a string identifier.
+                if (typeof msgId === 'object') {
+                    msgId = (msgId as any)._serialized || (msgId as any).id;
+                }
+                const mediaRes = await downloadMedia(sessionName || '', msgId, 'ogg');
+                if (mediaRes.filepath) {
+                    const transcription = await transcribeAudio(mediaRes.filepath);
+                    if (transcription) {
+                        textContent = transcription;
+                        console.log('Transcribed Audio:', textContent);
+                        try { require('fs').unlinkSync(mediaRes.filepath); } catch(e) {}
+                    }
+                }
             } 
             else if (mediaType === 'image') {
-                console.log('Received image message, needs processing');
+                console.log('Received image message, downloading...');
+                let msgId = message.id;
+                if (typeof msgId === 'object') {
+                    msgId = (msgId as any)._serialized || (msgId as any).id;
+                }
+                const mediaRes = await downloadMedia(sessionName || '', msgId, 'jpeg');
+                if (mediaRes.buffer) {
+                    const b64 = mediaRes.buffer.toString('base64');
+                    imageUrl = `data:image/jpeg;base64,${b64}`;
+                    console.log('Image converted to base64 successfully');
+                }
             }
             else if (mediaType === 'video') {
-                console.log('Received video message');
+                console.log('Received video message (Not supported by vision yet)');
             }
         }
 
@@ -161,8 +184,8 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
 
         // 5. Generate AI Response
         let aiMessage = await (isDoctorBot 
-            ? generateDoctorResponse(system_prompt, chatHistory, textContent, imageUrl) 
-            : generateResponse(system_prompt, chatHistory, textContent, imageUrl));
+            ? generateDoctorResponse(system_prompt, patientPhone, chatHistory, textContent, imageUrl) 
+            : generateResponse(system_prompt, patientPhone, chatHistory, textContent, imageUrl));
 
         if (!aiMessage) {
             res.status(500).send('Failed to generate AI response');

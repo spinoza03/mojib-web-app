@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, Smartphone, QrCode, CheckCircle2, RefreshCw, Timer, XCircle } from 'lucide-react';
+import { Loader2, Smartphone, QrCode, CheckCircle2, RefreshCw, Timer, XCircle, Lock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -24,6 +24,8 @@ export default function ConnectPage() {
 	const [isLoading, setIsLoading] = useState(false);
 	const [isRefreshing, setIsRefreshing] = useState(false);
 	const [timeLeft, setTimeLeft] = useState(REFRESH_INTERVAL);
+
+	const isEssentiel = user && useAuth().profile?.plan_type === 'essentiel';
 
 	// ------------------------------------------------------------------
 	// 1. STATUS SYNC & NUMBER CAPTURE (The Brain)
@@ -434,6 +436,27 @@ export default function ConnectPage() {
 
 				<Card className="glass-card border-primary/20 overflow-hidden shadow-2xl">
 					<CardContent className="p-0">
+						{isEssentiel ? (
+							<div className="p-16 flex flex-col items-center justify-center text-center space-y-6">
+								<div className="h-24 w-24 bg-primary/10 rounded-full flex items-center justify-center mb-2 border border-primary/20 shadow-inner">
+									<Lock className="h-10 w-10 text-primary" />
+								</div>
+								<div>
+									<h2 className="text-2xl font-bold">Fonctionnalité Premium</h2>
+									<p className="text-muted-foreground max-w-md mt-3 mx-auto leading-relaxed">
+										L'automatisation WhatsApp avec l'IA est une exclusivité des plans <strong>Le Pro</strong> et <strong>L'Elite</strong>. 
+										Mettez à niveau votre compte pour offrir à vos patients un accueil 24/7.
+									</p>
+								</div>
+								<Button 
+									size="lg"
+									onClick={() => window.open(`https://wa.me/447749343372?text=${encodeURIComponent('Bonjour, je souhaite passer au plan supérieur (Le Pro / L\'Elite) pour activer WhatsApp Mojib.AI.')}`, '_blank')}
+									className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold mt-4 shadow-lg"
+								>
+									Upgrader mon Abonnement
+								</Button>
+							</div>
+						) : (
 						<div className="grid md:grid-cols-2 min-h-[500px]">
 
 							{/* Instructions */}
@@ -577,6 +600,7 @@ export default function ConnectPage() {
 							</div>
 
 						</div>
+						)}
 					</CardContent>
 				</Card>
 			</div>

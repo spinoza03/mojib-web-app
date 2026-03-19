@@ -293,7 +293,7 @@ export default function SettingsPage() {
 
 									<div className="flex gap-3">
 										<Button
-											onClick={() => window.open(`https://wa.me/212600000000?text=${encodeURIComponent('Bonjour, je souhaite activer mon abonnement Mojib.AI.')}`, '_blank')}
+											onClick={() => window.open(`https://wa.me/447749343372?text=${encodeURIComponent('Bonjour, je souhaite activer mon abonnement Mojib.AI.')}`, '_blank')}
 											className="bg-[#25D366] hover:bg-[#25D366]/90 text-black font-medium"
 										>
 											Contacter sur WhatsApp
@@ -320,7 +320,7 @@ export default function SettingsPage() {
 							</p>
 							<Button
 								variant="outline"
-								onClick={() => window.open(`https://wa.me/212600000000?text=${encodeURIComponent('Bonjour, je veux savoir quand mon industrie sera disponible sur Mojib.AI.')}`, '_blank')}
+								onClick={() => window.open(`https://wa.me/447749343372?text=${encodeURIComponent('Bonjour, je veux savoir quand mon industrie sera disponible sur Mojib.AI.')}`, '_blank')}
 								className="border-yellow-500/30 text-yellow-500 hover:bg-yellow-500/10"
 							>
 								Contacter le Support
@@ -623,7 +623,9 @@ export default function SettingsPage() {
 						<div className="grid gap-4 md:grid-cols-3">
 							<div className="rounded-lg border p-4 bg-secondary/20">
 								<p className="text-sm text-muted-foreground">Plan</p>
-								<p className="text-lg font-semibold capitalize">{planType}</p>
+								<p className="text-lg font-semibold capitalize">
+									{planType === 'essentiel' ? "L'Essentiel" : planType === 'pro' ? "Le Pro" : planType === 'elite' ? "L'Elite" : planType}
+								</p>
 							</div>
 							<div className="rounded-lg border p-4 bg-secondary/20">
 								<p className="text-sm text-muted-foreground">Statut</p>
@@ -671,10 +673,10 @@ export default function SettingsPage() {
 						</div>
 
 						<Button
-							onClick={() => window.open(`https://wa.me/212600000000?text=${encodeURIComponent('Bonjour, je souhaite activer/renouveler mon abonnement Mojib.AI.')}`, '_blank')}
+							onClick={() => window.open(`https://wa.me/447749343372?text=${encodeURIComponent(`Bonjour, je souhaite activer/renouveler mon abonnement ${planType !== 'elite' ? 'ou passer au plan Supérieur' : ''} sur Mojib.AI.`)}`, '_blank')}
 							className="w-full"
 						>
-							Contacter pour Activation
+							Contacter pour {planType !== 'elite' ? 'Activer ou Upgrader' : 'Activation'}
 						</Button>
 					</CardContent>
 				</Card>

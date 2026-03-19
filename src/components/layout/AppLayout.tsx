@@ -4,7 +4,7 @@ import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/hooks/useAuth';
-import { Loader2, Menu } from 'lucide-react';
+import { Loader2, Menu, MessageCircle } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 
@@ -72,6 +72,18 @@ export function AppLayout({ children }: AppLayoutProps) {
             </motion.main>
         </div>
       </div>
+      {/* 4. Global WhatsApp Support Button */}
+      <a
+        href="https://wa.me/447749343372"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="fixed bottom-6 right-6 z-50 bg-[#25D366] hover:bg-[#25D366]/90 text-white p-4 rounded-full shadow-2xl transition-transform hover:scale-110 flex items-center justify-center pointer-events-auto group"
+      >
+        <MessageCircle className="h-6 w-6" />
+        <span className="absolute right-full mr-4 bg-black/80 text-white text-xs font-medium px-3 py-1.5 rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
+          Support Client
+        </span>
+      </a>
     </div>
   );
 }

@@ -116,6 +116,107 @@ export type Database = {
         }
         Relationships: []
       }
+      patients: {
+        Row: {
+          created_at: string
+          email: string | null
+          first_name: string
+          id: string
+          last_name: string
+          notes: string | null
+          phone: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          first_name: string
+          id?: string
+          last_name: string
+          notes?: string | null
+          phone?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          first_name?: string
+          id?: string
+          last_name?: string
+          notes?: string | null
+          phone?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patients_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      treatments: {
+        Row: {
+          collected_amount: number
+          created_at: string
+          date: string
+          id: string
+          net_profit: number
+          notes: string | null
+          patient_id: string
+          product_cost: number
+          quantity: string | null
+          treatment_name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          collected_amount?: number
+          created_at?: string
+          date?: string
+          id?: string
+          net_profit?: number
+          notes?: string | null
+          patient_id: string
+          product_cost?: number
+          quantity?: string | null
+          treatment_name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          collected_amount?: number
+          created_at?: string
+          date?: string
+          id?: string
+          net_profit?: number
+          notes?: string | null
+          patient_id?: string
+          product_cost?: number
+          quantity?: string | null
+          treatment_name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "treatments_patient_id_fkey"
+            columns: ["patient_id"]
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "treatments_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never

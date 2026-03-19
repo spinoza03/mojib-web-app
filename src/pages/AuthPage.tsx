@@ -16,10 +16,18 @@ type NicheType = 'dentistry' | 'doctor' | 'beauty_center' | 'immobilier' | 'car_
 const NICHES: { id: NicheType; label: string; labelFr: string; icon: any; active: boolean }[] = [
   { id: 'dentistry', label: 'Dentistry', labelFr: 'Dentisterie', icon: Stethoscope, active: true },
   { id: 'doctor', label: 'Doctor / Clinic', labelFr: 'Médecin / Clinique', icon: HeartPulse, active: true },
-  { id: 'beauty_center', label: 'Beauty Center', labelFr: 'Centre de beauté', icon: Scissors, active: true },
+  { id: 'beauty_center', label: 'Centres d\'esthétique', labelFr: 'Centres d\'esthétique', icon: Scissors, active: true },
   { id: 'immobilier', label: 'Real Estate', labelFr: 'Immobilier', icon: Home, active: false },
   { id: 'car_location', label: 'Car Rental', labelFr: 'Location de voitures', icon: Car, active: false },
   { id: 'centre_formation', label: 'Training Center', labelFr: 'Centre de formation', icon: GraduationCap, active: false },
+];
+
+type PlanType = 'essentiel' | 'pro' | 'elite';
+
+const PLANS: { id: PlanType; label: string; price: string; descriptionFr: string; descriptionEn: string }[] = [
+  { id: 'essentiel', label: 'L\'Essentiel', price: '299 DH', descriptionFr: 'Gestion & Finance', descriptionEn: 'CRM & Finance' },
+  { id: 'pro', label: 'Le Pro', price: '499 DH', descriptionFr: 'IA (Anass) 24/7 + L\'Essentiel', descriptionEn: 'AI (Anass) 24/7 + L\'Essentiel' },
+  { id: 'elite', label: 'L\'Elite', price: '799 DH', descriptionFr: 'Plateforme Web + Le Pro', descriptionEn: 'Premium Website + Le Pro' }
 ];
 
 /** Generate a WAHA-safe session name: lowercase, no spaces, no arabic, + random digits */
@@ -49,6 +57,7 @@ export default function AuthPage() {
   const [clinicName, setClinicName] = useState('');
   const [phone, setPhone] = useState('');
   const [selectedNiche, setSelectedNiche] = useState<NicheType>('dentistry');
+  const [selectedPlan, setSelectedPlan] = useState<PlanType>('essentiel');
 
   // Language toggle
   const [lang, setLang] = useState<'en' | 'fr'>('fr');
@@ -74,6 +83,7 @@ export default function AuthPage() {
       businessName: 'Business Name',
       phoneNumber: 'Phone Number',
       selectNiche: 'Select Your Industry',
+      selectPlan: 'Select Subscription Plan',
       createAccount: 'Create Account',
       comingSoon: 'Coming Soon',
       loginFailed: 'Login Failed',
@@ -101,6 +111,7 @@ export default function AuthPage() {
       businessName: "Nom de l'entreprise",
       phoneNumber: 'Numéro de téléphone',
       selectNiche: 'Sélectionnez votre secteur',
+      selectPlan: 'Choisir un abonnement',
       createAccount: 'Créer un compte',
       comingSoon: 'Bientôt disponible',
       loginFailed: 'Connexion échouée',
@@ -164,6 +175,7 @@ export default function AuthPage() {
       phone: phone,
       niche: selectedNiche,
       waha_session_name: wahaSessionName,
+      plan_type: selectedPlan,
     });
     setIsLoading(false);
 
@@ -292,6 +304,34 @@ export default function AuthPage() {
                             {t.comingSoon}
                           </span>
                         )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Plan Selection Grid */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">{t.selectPlan}</Label>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                    {PLANS.map((plan) => (
+                      <button
+                        key={plan.id}
+                        type="button"
+                        onClick={() => setSelectedPlan(plan.id)}
+                        className={cn(
+                          'relative flex flex-col items-start gap-1 p-3 rounded-xl border-2 transition-all duration-200 text-left',
+                          selectedPlan === plan.id
+                            ? 'border-primary bg-primary/10 text-primary shadow-lg shadow-primary/10'
+                            : 'border-border/50 bg-secondary/20 text-muted-foreground hover:border-primary/30 hover:bg-secondary/40'
+                        )}
+                      >
+                        <span className="text-xs font-bold">{plan.label}</span>
+                        <span className="text-[10px] font-medium leading-tight opacity-80">
+                          {lang === 'fr' ? plan.descriptionFr : plan.descriptionEn}
+                        </span>
+                        <span className="text-xs font-black mt-1">
+                          {plan.price}<span className="text-[9px] font-normal opacity-70">/mo</span>
+                        </span>
                       </button>
                     ))}
                   </div>

@@ -10,6 +10,8 @@ import AppointmentsPage from "./pages/AppointmentsPage";
 import ConnectPage from "./pages/ConnectPage";
 import SettingsPage from "./pages/SettingsPage";
 import AdminPage from "./pages/AdminPage";
+import CRMPage from "./pages/CRMPage";
+import FinancePage from "./pages/FinancePage";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 
@@ -93,6 +95,22 @@ const App = () => (
               element={
                 <ProtectedFeatureRoute featureName="dashboard">
                   <DashboardPage />
+                </ProtectedFeatureRoute>
+              }
+            />
+            <Route
+              path="/crm"
+              element={
+                <ProtectedFeatureRoute featureName="crm">
+                  <CRMPage />
+                </ProtectedFeatureRoute>
+              }
+            />
+            <Route
+              path="/finance"
+              element={
+                <ProtectedFeatureRoute featureName="finance">
+                  <FinancePage />
                 </ProtectedFeatureRoute>
               }
             />

@@ -71,50 +71,35 @@ export async function saveMessage(phone_number: string, role: string, content: s
     }
 }
 
-export async function getClinicBotSettings(receivingPhone: string) {
-    // Determine the phone without non-digits for safety
-    const safePhone = receivingPhone.replace(/\D/g, '');
+export async function getClinicBotSettingsBySession(sessionName: string) {
+    if (!sessionName) return null;
 
-    // 1. Fetch profile
-    const { data: profile, error: pError } = await supabase
-        .from('profiles')
-        .select('id, clinic_name, subscription_status, waha_session_name')
-        .eq('phone', safePhone)
-        .limit(1)
-        .maybeSingle();
+    const { data, error } = await supabase.rpc('get_bot_config_by_session', { p_session_name: sessionName });
 
-    if (pError || !profile) {
-        console.error('Could not find clinic profile for phone:', safePhone, pError);
-        return null; // Not a registered doctor
+    if (error || !data) {
+        console.error('Could not find config via RPC for session:', sessionName, error);
+        return null;
     }
 
-    // 2. Fetch bot config (including structured fields)
-    const { data: config, error: bError } = await supabase
-        .from('bot_configs')
-        .select('system_prompt, cooldown_seconds, working_hours, tone, languages, additional_info')
-        .eq('user_id', profile.id)
-        .limit(1)
-        .maybeSingle();
-
-    // 3. Auto-generate prompt from structured fields if system_prompt is empty
-    let systemPrompt = config?.system_prompt || '';
-    if (!systemPrompt && config) {
+    // `data` is the JSON object returned from the RPC
+    let systemPrompt = data.system_prompt || '';
+    if (!systemPrompt) {
         systemPrompt = generateMasterPrompt(
-            profile.clinic_name,
-            config.working_hours || 'Mon-Sat 09:00-18:00',
-            config.tone || 'professional,welcoming',
-            config.languages || 'darija,french',
-            config.additional_info || ''
+            data.clinic_name,
+            data.working_hours,
+            data.tone,
+            data.languages,
+            data.additional_info
         );
     }
 
     return {
-        user_id: profile.id,
-        clinic_name: profile.clinic_name,
-        subscription_status: profile.subscription_status,
-        waha_session_name: profile.waha_session_name,
+        user_id: data.user_id,
+        clinic_name: data.clinic_name,
+        subscription_status: data.subscription_status,
+        waha_session_name: data.waha_session_name,
         system_prompt: systemPrompt,
-        cooldown_seconds: config?.cooldown_seconds || 60
+        cooldown_seconds: data.cooldown_seconds
     };
 }
 
@@ -141,11 +126,17 @@ function generateMasterPrompt(
             : 'Professional, prestigious, and welcoming';
 
     const langList = languages.split(',').map(l => l.trim());
-    let langInstruction = 'Strictly Darija using Arabic Script only (No Latin/Araby). If the patient starts in English, you may match with high-level professional French.';
+    let langInstruction = 'STRICT MOROCCAN DARIJA IN ARABIC SCRIPT ONLY (الدارجة المغربية).\n' +
+        'CRITICAL RULES:\n' +
+        '1. NEVER use Modern Standard Arabic (Fusha) like "هل", "ماذا", "أين", "نحن", "كيف يمكنني", "أرجو", "عذرا".\n' +
+        '2. NEVER use Egyptian/Levantine like "عايز", "ازيك", "فين", "ليه", "بدي".\n' +
+        '3. ALWAYS use Moroccan: "واش", "شنو", "علاش", "بزاف", "واخا", "ديال", "شحال", "معياش", "مرحبا".\n' +
+        '4. If the patient starts in French or English, reply in professional French or English, otherwise strictly Darija.';
+
     if (langList.includes('english') && !langList.includes('darija')) {
-        langInstruction = 'Respond in English with professional tone.';
+        langInstruction = 'Respond purely in professional English.';
     } else if (langList.includes('french') && !langList.includes('darija')) {
-        langInstruction = 'Respond in professional French.';
+        langInstruction = 'Respond purely in professional French.';
     }
 
     return `[TEMPORAL CONTEXT]
@@ -206,7 +197,13 @@ Strict Formatting: You MUST NOT send an empty value. Combine confirmed date and 
 [DARIJA DENTAL DICTIONARY]
 Derssa (الضرسة): Tooth/Molar | Soussa (السوسة): Cavity/Decay | Darani (ضاراني): It hurts me
 Fmi (فمي): My mouth | Lata (اللثة): Gums | Mbezegh/Manfokh (منفوخ): Swollen | Dam (الدم): Blood
-Reaction Rule: If a patient mentions "Derssa" or "Soussa," validate their pain immediately.`;
+Reaction Rule: If a patient mentions "Derssa" or "Soussa," validate their pain immediately.
+
+[CONVERSATION EXAMPLES (DO NOT COPY EXACTLY, JUST EMULATE DARIJA STYLE)]
+Patient: salam brit nakhod mawiid
+Assistant: وعليكم السلام ورحمة الله! مرحبا بك في عيادة ${clinicName}. كيفاش نقدرو نعاونوك اليوم؟
+Patient: darani wahed darsa
+Assistant: ما يكون باس عندك! أحسن حاجة هي تجي العيادة باش الطبيب يشوف حالتك ويدير لك التشخيص المناسب. واش تبغي نحجزو لك موعد هاد السيمانة؟`;
 }
 
 

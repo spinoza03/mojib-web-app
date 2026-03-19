@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { Home, Calendar, Smartphone, Settings, LogOut, Shield, Stethoscope, HeartPulse, Scissors, Home as HomeIcon, Car, GraduationCap } from 'lucide-react';
+import { Home, Calendar, Smartphone, Settings, LogOut, Shield, Stethoscope, HeartPulse, Scissors, Home as HomeIcon, Car, GraduationCap, Users, PieChart } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { useAuth, type FeatureName, type NicheType } from '@/hooks/useAuth';
@@ -15,8 +15,10 @@ const NICHE_CONFIG: Record<NicheType, { label: string; icon: any; active: boolea
   centre_formation: { label: '🎓 Centre Formation', icon: GraduationCap, active: false },
 };
 
-const navItems: Array<{ icon: typeof Home; label: string; path: string; feature: FeatureName }> = [
+const navItems: Array<{ icon: any; label: string; path: string; feature: FeatureName }> = [
   { icon: Home, label: 'Tableau de Bord', path: '/dashboard', feature: 'dashboard' },
+  { icon: Users, label: 'Patients (CRM)', path: '/crm', feature: 'crm' },
+  { icon: PieChart, label: 'Finances & Marge', path: '/finance', feature: 'finance' },
   { icon: Calendar, label: 'Gérer Rendez-vous', path: '/appointments', feature: 'calendar-sync' },
   { icon: Smartphone, label: 'Connecter WhatsApp', path: '/connect', feature: 'chat' },
   { icon: Settings, label: 'Configuration IA', path: '/settings', feature: 'advanced-settings' },

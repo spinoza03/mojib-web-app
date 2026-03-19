@@ -95,13 +95,16 @@ export async function transcribeAudio(audioFilePath: string): Promise<string | n
 
 export async function generateResponse(
     systemPrompt: string,
+    patientPhone: string,
     chatHistory: any[],
     newMessage: string,
     imageUrl?: string,
     toolsList: any[] = TOOLS
 ) {
+    const dynamicPrompt = `${systemPrompt}\n\n[PATIENT INFO]\nThe patient is messaging you from the WhatsApp number: ${patientPhone}. If they ask you to use their current number to book, DO NOT ask them to type it again. You already know it is exactly ${patientPhone}.`;
+
     const messages: any[] = [
-        { role: 'system', content: systemPrompt }
+        { role: 'system', content: dynamicPrompt }
     ];
 
     // Add history
@@ -148,6 +151,7 @@ export async function generateResponse(
 
 export async function generateDoctorResponse(
     systemPrompt: string,
+    patientPhone: string,
     chatHistory: any[],
     newMessage: string,
     imageUrl?: string
@@ -162,5 +166,5 @@ export async function generateDoctorResponse(
     
     const fullSystemPrompt = temporalContext + systemPrompt;
     
-    return generateResponse(fullSystemPrompt, chatHistory, newMessage, imageUrl, DOCTOR_TOOLS);
+    return generateResponse(fullSystemPrompt, patientPhone, chatHistory, newMessage, imageUrl, DOCTOR_TOOLS);
 }

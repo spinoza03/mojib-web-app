@@ -3,9 +3,9 @@ import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
 // 1. Define the Profile shape
-type PlanType = 'starter' | 'pro';
+type PlanType = 'essentiel' | 'pro' | 'elite';
 type SubscriptionStatus = 'trial' | 'active' | 'expired';
-export type FeatureName = 'dashboard' | 'chat' | 'calendar-sync' | 'advanced-settings';
+export type FeatureName = 'dashboard' | 'chat' | 'calendar-sync' | 'advanced-settings' | 'crm' | 'finance';
 export type NicheType = 'dentistry' | 'doctor' | 'beauty_center' | 'immobilier' | 'car_location' | 'centre_formation';
 
 const ACTIVE_NICHES: NicheType[] = ['dentistry', 'doctor', 'beauty_center'];
@@ -36,7 +36,7 @@ interface AuthContextType {
   signUp: (
     email: string,
     password: string,
-    metaData?: { clinic_name: string; phone: string; niche?: string; waha_session_name?: string }
+    metaData?: { clinic_name: string; phone: string; niche?: string; waha_session_name?: string; plan_type?: string }
   ) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -103,7 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error };
   };
 
-  const signUp = async (email: string, password: string, metaData?: { clinic_name: string; phone: string; niche?: string; waha_session_name?: string }) => {
+  const signUp = async (email: string, password: string, metaData?: { clinic_name: string; phone: string; niche?: string; waha_session_name?: string; plan_type?: string }) => {
     const redirectUrl = `${window.location.origin}/`;
     
     const { error } = await supabase.auth.signUp({
