@@ -27,7 +27,10 @@ interface WAMessage {
 export const wahaWebhookHandler = async (req: Request, res: Response): Promise<void> => {
     try {
         const payload = req.body;
-        // console.log("Incoming Webhook Payload:", JSON.stringify(payload, null, 2));
+        console.log("-------------------");
+        console.log("Incoming Webhook Payload Event:", payload.event);
+        console.log("Payload:", JSON.stringify(payload, null, 2));
+        console.log("-------------------");
 
         // WAHA sends events as 'message' (not 'message.upsert')
         if (payload.event !== 'message') {

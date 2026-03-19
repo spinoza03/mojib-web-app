@@ -1,8 +1,16 @@
 -- =========================================================================
--- FINAL TRIGGER FIX (Removes dependency on broken UNIQUE constraints)
+-- COMPLETE FIX: PHONE FORMATTING + NEW USER SIGNUP
 -- Copy and paste ALL of this into the Supabase SQL Editor and run it!
 -- =========================================================================
 
+-- 1. Fix all existing phone numbers that contain spaces or + signs 
+-- This is why the AI agent was staying silent! The webhook was looking for 
+-- pure digits (e.g. 212600) but finding spaces in the DB (+212 600).
+UPDATE public.profiles 
+SET phone = regexp_replace(COALESCE(phone, ''), '\D', '', 'g') 
+WHERE phone IS NOT NULL;
+
+-- 2. Create the fixed trigger to secure future sign-ups
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -11,9 +19,14 @@ DECLARE
   v_niche TEXT;
   v_waha_session TEXT;
 BEGIN
-  -- Extract metadata safely
   v_clinic_name := COALESCE(NEW.raw_user_meta_data->>'clinic_name', 'My Clinic');
+  
+  -- Strip non-digits from the phone automatically!
   v_phone := NEW.raw_user_meta_data->>'phone';
+  IF v_phone IS NOT NULL THEN
+    v_phone := regexp_replace(v_phone, '\D', '', 'g');
+  END IF;
+
   v_niche := COALESCE(NEW.raw_user_meta_data->>'niche', 'dentistry');
   v_waha_session := NEW.raw_user_meta_data->>'waha_session_name';
 
@@ -28,7 +41,6 @@ BEGIN
   END IF;
 
   -- Insert bot_config using IF NOT EXISTS to avoid ON CONFLICT errors
-  -- (This fixes the exact crash found in the debug_logs)
   IF NOT EXISTS (SELECT 1 FROM public.bot_configs WHERE user_id = NEW.id) THEN
     INSERT INTO public.bot_configs (user_id, system_prompt)
     VALUES (NEW.id, '');
@@ -38,5 +50,12 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
--- Also adding the UNIQUE constraint safely to bot_configs to prevent future issues
-ALTER TABLE public.bot_configs ADD CONSTRAINT bot_configs_user_id_key UNIQUE (user_id);
+-- 3. Safely add the UNIQUE constraint to bot_configs to prevent the trigger crash
+DO $$ 
+BEGIN
+  IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint WHERE conname = 'bot_configs_user_id_key'
+  ) THEN
+      ALTER TABLE public.bot_configs ADD CONSTRAINT bot_configs_user_id_key UNIQUE (user_id);
+  END IF;
+END $$;
