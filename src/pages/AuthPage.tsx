@@ -1,32 +1,121 @@
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client'; // <--- Added this import
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Building2, Lock, Mail, Phone, Loader2 } from 'lucide-react';
+import { Building2, Lock, Mail, Phone, Loader2, Stethoscope, Scissors, Home, Car, GraduationCap, HeartPulse } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Navigate } from 'react-router-dom';
+import { cn } from '@/lib/utils';
+
+type NicheType = 'dentistry' | 'doctor' | 'beauty_center' | 'immobilier' | 'car_location' | 'centre_formation';
+
+const NICHES: { id: NicheType; label: string; labelFr: string; icon: any; active: boolean }[] = [
+  { id: 'dentistry', label: 'Dentistry', labelFr: 'Dentisterie', icon: Stethoscope, active: true },
+  { id: 'doctor', label: 'Doctor / Clinic', labelFr: 'Médecin / Clinique', icon: HeartPulse, active: true },
+  { id: 'beauty_center', label: 'Beauty Center', labelFr: 'Centre de beauté', icon: Scissors, active: true },
+  { id: 'immobilier', label: 'Real Estate', labelFr: 'Immobilier', icon: Home, active: false },
+  { id: 'car_location', label: 'Car Rental', labelFr: 'Location de voitures', icon: Car, active: false },
+  { id: 'centre_formation', label: 'Training Center', labelFr: 'Centre de formation', icon: GraduationCap, active: false },
+];
+
+/** Generate a WAHA-safe session name: lowercase, no spaces, no arabic, + random digits */
+function generateWahaSessionName(clinicName: string): string {
+  const sanitized = clinicName
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // remove accents
+    .replace(/[^\x00-\x7F]/g, '')     // remove non-ASCII (arabic etc.)
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '_')       // replace non-alphanumeric with underscore
+    .replace(/_+/g, '_')              // collapse multiple underscores
+    .replace(/^_|_$/g, '')            // trim leading/trailing underscores
+    .slice(0, 30);                    // limit length
+
+  const random = Math.floor(Math.random() * 9000) + 1000; // 4-digit random
+  return `${sanitized || 'clinic'}_${random}`;
+}
 
 export default function AuthPage() {
   const { signIn, signUp, user, loading } = useAuth();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
-  
+
   // Form States
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [clinicName, setClinicName] = useState('');
   const [phone, setPhone] = useState('');
+  const [selectedNiche, setSelectedNiche] = useState<NicheType>('dentistry');
+
+  // Language toggle
+  const [lang, setLang] = useState<'en' | 'fr'>('en');
   
-  // NEW: State for Password Reset Mode
+  // Password Reset Mode
   const [resetMode, setResetMode] = useState(false);
 
   if (user && !loading) {
     return <Navigate to="/dashboard" replace />;
   }
+
+  const t = {
+    en: {
+      tagline: 'The Intelligent AI Responder for Modern Business.',
+      login: 'Login',
+      signUp: 'Sign Up',
+      email: 'Email',
+      password: 'Password',
+      forgotPassword: 'Forgot Password?',
+      backToLogin: 'Back to Login',
+      sendResetLink: 'Send Reset Link',
+      signIn: 'Sign In',
+      businessName: 'Business Name',
+      phoneNumber: 'Phone Number',
+      selectNiche: 'Select Your Industry',
+      createAccount: 'Create Account',
+      comingSoon: 'Coming Soon',
+      loginFailed: 'Login Failed',
+      missingInfo: 'Missing Info',
+      fillFields: 'Please fill all required fields.',
+      signUpFailed: 'Sign Up Failed',
+      welcome: 'Welcome to Mojib.AI!',
+      accountCreated: 'Account created. Check your email to confirm, then log in.',
+      checkEmail: 'Check your email',
+      resetSent: 'Password reset link sent!',
+      emailPlaceholder: 'you@example.com',
+      businessPlaceholder: 'e.g. Royal Dental Center',
+      phonePlaceholder: '+212 6...',
+    },
+    fr: {
+      tagline: "L'assistant IA intelligent pour les entreprises modernes.",
+      login: 'Connexion',
+      signUp: "S'inscrire",
+      email: 'Email',
+      password: 'Mot de passe',
+      forgotPassword: 'Mot de passe oublié ?',
+      backToLogin: 'Retour à la connexion',
+      sendResetLink: 'Envoyer le lien',
+      signIn: 'Se connecter',
+      businessName: "Nom de l'entreprise",
+      phoneNumber: 'Numéro de téléphone',
+      selectNiche: 'Sélectionnez votre secteur',
+      createAccount: 'Créer un compte',
+      comingSoon: 'Bientôt disponible',
+      loginFailed: 'Connexion échouée',
+      missingInfo: 'Infos manquantes',
+      fillFields: 'Veuillez remplir tous les champs requis.',
+      signUpFailed: "Échec de l'inscription",
+      welcome: 'Bienvenue sur Mojib.AI !',
+      accountCreated: 'Compte créé. Vérifiez votre email pour confirmer, puis connectez-vous.',
+      checkEmail: 'Vérifiez votre email',
+      resetSent: 'Lien de réinitialisation envoyé !',
+      emailPlaceholder: 'vous@exemple.com',
+      businessPlaceholder: 'ex. Centre Dentaire Royal',
+      phonePlaceholder: '+212 6...',
+    },
+  }[lang];
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,11 +124,10 @@ export default function AuthPage() {
     setIsLoading(false);
     
     if (error) {
-      toast({ variant: 'destructive', title: 'Login Failed', description: error.message });
+      toast({ variant: 'destructive', title: t.loginFailed, description: error.message });
     }
   };
 
-  // NEW: Function to send the reset email
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) {
@@ -56,29 +144,33 @@ export default function AuthPage() {
     if (error) {
       toast({ variant: 'destructive', title: 'Error', description: error.message });
     } else {
-      toast({ title: 'Check your email', description: 'Password reset link sent!' });
-      setResetMode(false); // Go back to login mode
+      toast({ title: t.checkEmail, description: t.resetSent });
+      setResetMode(false);
     }
   };
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!clinicName || !phone) {
-      toast({ variant: 'destructive', title: 'Missing Info', description: 'Please enter your Clinic Name and Phone.' });
+    if (!clinicName || !phone || !email || !password) {
+      toast({ variant: 'destructive', title: t.missingInfo, description: t.fillFields });
       return;
     }
 
     setIsLoading(true);
+    const wahaSessionName = generateWahaSessionName(clinicName);
+    
     const { error } = await signUp(email, password, {
       clinic_name: clinicName,
-      phone: phone
+      phone: phone,
+      niche: selectedNiche,
+      waha_session_name: wahaSessionName,
     });
     setIsLoading(false);
 
     if (error) {
-      toast({ variant: 'destructive', title: 'Sign Up Failed', description: error.message });
+      toast({ variant: 'destructive', title: t.signUpFailed, description: error.message });
     } else {
-      toast({ title: 'Welcome to Mojib.AI!', description: 'Account created. You can now log in.' });
+      toast({ title: t.welcome, description: t.accountCreated });
     }
   };
 
@@ -87,8 +179,16 @@ export default function AuthPage() {
       <div className="absolute inset-0 bg-background pattern-grid opacity-20" />
       <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-3xl" />
       
-      <Card className="w-full max-w-md glass-card relative z-10 border-primary/20">
+      <Card className="w-full max-w-lg glass-card relative z-10 border-primary/20">
         <CardHeader className="text-center space-y-2">
+          <div className="flex justify-end">
+            <button
+              onClick={() => setLang(lang === 'en' ? 'fr' : 'en')}
+              className="text-xs font-medium px-3 py-1.5 rounded-full bg-secondary/50 hover:bg-secondary border border-primary/10 transition-colors"
+            >
+              {lang === 'en' ? '🇫🇷 FR' : '🇬🇧 EN'}
+            </button>
+          </div>
           <div className="mx-auto w-12 h-12 bg-primary/20 rounded-xl flex items-center justify-center mb-2">
             <Building2 className="w-6 h-6 text-primary" />
           </div>
@@ -96,27 +196,27 @@ export default function AuthPage() {
             MOJIB<span className="text-primary">.AI</span>
           </CardTitle>
           <CardDescription>
-            The Intelligent AI Responder for Modern Business.
+            {t.tagline}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="login" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-8 bg-secondary/50">
-              <TabsTrigger value="login">Login</TabsTrigger>
-              <TabsTrigger value="register">Sign Up</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-2 mb-6 bg-secondary/50">
+              <TabsTrigger value="login">{t.login}</TabsTrigger>
+              <TabsTrigger value="register">{t.signUp}</TabsTrigger>
             </TabsList>
 
             {/* LOGIN FORM */}
             <TabsContent value="login">
               <form className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="email">{t.email}</Label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input 
                       id="email" 
                       type="email" 
-                      placeholder="doctor@clinic.com" 
+                      placeholder={t.emailPlaceholder}
                       className="pl-9 bg-secondary/30"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
@@ -125,10 +225,9 @@ export default function AuthPage() {
                   </div>
                 </div>
 
-                {/* Only show Password field if NOT in reset mode */}
                 {!resetMode && (
                   <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
+                    <Label htmlFor="password">{t.password}</Label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                       <Input 
@@ -143,40 +242,67 @@ export default function AuthPage() {
                   </div>
                 )}
 
-                {/* --- THIS IS THE PART YOU ASKED FOR --- */}
                 <div className="flex justify-end">
                   <button 
                     type="button"
                     onClick={() => setResetMode(!resetMode)}
                     className="text-xs text-primary hover:underline"
                   >
-                    {resetMode ? 'Back to Login' : 'Forgot Password?'}
+                    {resetMode ? t.backToLogin : t.forgotPassword}
                   </button>
                 </div>
 
                 {resetMode ? (
                   <Button onClick={handleResetPassword} className="w-full" disabled={isLoading}>
-                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Send Reset Link'}
+                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : t.sendResetLink}
                   </Button>
                 ) : (
                   <Button onClick={handleLogin} className="w-full bg-primary hover:bg-primary/90" disabled={isLoading}>
-                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Sign In'}
+                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : t.signIn}
                   </Button>
                 )}
-                {/* -------------------------------------- */}
-
               </form>
             </TabsContent>
 
             {/* REGISTER FORM */}
             <TabsContent value="register">
               <form onSubmit={handleRegister} className="space-y-4">
+                {/* Niche Selection Grid */}
                 <div className="space-y-2">
-                  <Label>Clinic Name</Label>
+                  <Label className="text-sm font-medium">{t.selectNiche}</Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {NICHES.map((niche) => (
+                      <button
+                        key={niche.id}
+                        type="button"
+                        onClick={() => setSelectedNiche(niche.id)}
+                        className={cn(
+                          'relative flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all duration-200 text-center',
+                          selectedNiche === niche.id
+                            ? 'border-primary bg-primary/10 text-primary shadow-lg shadow-primary/10'
+                            : 'border-border/50 bg-secondary/20 text-muted-foreground hover:border-primary/30 hover:bg-secondary/40'
+                        )}
+                      >
+                        <niche.icon className="h-5 w-5" />
+                        <span className="text-[11px] font-medium leading-tight">
+                          {lang === 'fr' ? niche.labelFr : niche.label}
+                        </span>
+                        {!niche.active && (
+                          <span className="absolute -top-1.5 -right-1.5 text-[8px] font-bold bg-yellow-500/80 text-black px-1.5 py-0.5 rounded-full">
+                            {t.comingSoon}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>{t.businessName}</Label>
                   <div className="relative">
                     <Building2 className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input 
-                      placeholder="e.g. Royal Dental Center" 
+                      placeholder={t.businessPlaceholder}
                       className="pl-9 bg-secondary/30"
                       value={clinicName}
                       onChange={(e) => setClinicName(e.target.value)}
@@ -186,11 +312,11 @@ export default function AuthPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Phone Number</Label>
+                  <Label>{t.phoneNumber}</Label>
                   <div className="relative">
                     <Phone className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input 
-                      placeholder="+212 6..." 
+                      placeholder={t.phonePlaceholder}
                       className="pl-9 bg-secondary/30"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
@@ -200,10 +326,10 @@ export default function AuthPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Email</Label>
+                  <Label>{t.email}</Label>
                   <Input 
                     type="email" 
-                    placeholder="doctor@clinic.com" 
+                    placeholder={t.emailPlaceholder}
                     className="bg-secondary/30"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -212,7 +338,7 @@ export default function AuthPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Password</Label>
+                  <Label>{t.password}</Label>
                   <Input 
                     type="password" 
                     className="bg-secondary/30"
@@ -223,7 +349,7 @@ export default function AuthPage() {
                 </div>
 
                 <Button className="w-full" disabled={isLoading}>
-                  {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Create Agency Account'}
+                  {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : t.createAccount}
                 </Button>
               </form>
             </TabsContent>

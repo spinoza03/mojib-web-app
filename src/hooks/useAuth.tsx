@@ -2,10 +2,13 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
-// 1. Define the Profile shape (matches your DB columns / generated types)
+// 1. Define the Profile shape
 type PlanType = 'starter' | 'pro';
 type SubscriptionStatus = 'trial' | 'active' | 'expired';
 export type FeatureName = 'dashboard' | 'chat' | 'calendar-sync' | 'advanced-settings';
+export type NicheType = 'dentistry' | 'doctor' | 'beauty_center' | 'immobilier' | 'car_location' | 'centre_formation';
+
+const ACTIVE_NICHES: NicheType[] = ['dentistry', 'doctor', 'beauty_center'];
 
 interface Profile {
   id: string;
@@ -14,10 +17,11 @@ interface Profile {
   phone: string | null;
   avatar_url: string | null;
   whatsapp_status: string;
+  niche: NicheType;
+  waha_session_name: string | null;
   created_at?: string;
   updated_at?: string;
-  // Optional fields (some projects add these columns later)
-  role?: 'clinic' | 'superuser'; // This is what unlocks the admin panel
+  role?: 'clinic' | 'superuser';
   plan_type: PlanType;
   subscription_status: SubscriptionStatus;
   trial_ends_at: string;
@@ -32,11 +36,13 @@ interface AuthContextType {
   signUp: (
     email: string,
     password: string,
-    metaData?: { clinic_name: string; phone: string }
+    metaData?: { clinic_name: string; phone: string; niche?: string; waha_session_name?: string }
   ) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   canAccessFeature: (featureName: FeatureName) => boolean;
+  isNicheActive: boolean;
+  isSubscriptionExpired: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -48,7 +54,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = async (userId: string) => {
-    // 2. THE FIX: Changed .eq('user_id', userId) to .eq('id', userId)
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
@@ -60,20 +65,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     if (data) {
-      console.log('Profile loaded:', data); // This helps debug in Console
+      console.log('Profile loaded:', data);
       setProfile(data as Profile);
     }
   };
 
   useEffect(() => {
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          // Fetch profile immediately when user logs in
           fetchProfile(session.user.id);
         } else {
           setProfile(null);
@@ -83,7 +86,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    // Initial check
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
@@ -101,20 +103,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error };
   };
 
-// Find this part in useAuth.tsx and update it if it looks different
-const signUp = async (email: string, password: string, metaData?: { clinic_name: string, phone: string }) => {
-	const redirectUrl = `${window.location.origin}/`;
-	
-	const { error } = await supabase.auth.signUp({
-	  email,
-	  password,
-	  options: {
-		emailRedirectTo: redirectUrl,
-		// Pass the extra data here
-		data: metaData 
-	  },
-	});
-	return { error };
+  const signUp = async (email: string, password: string, metaData?: { clinic_name: string; phone: string; niche?: string; waha_session_name?: string }) => {
+    const redirectUrl = `${window.location.origin}/`;
+    
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: redirectUrl,
+        data: metaData 
+      },
+    });
+    return { error };
   };
 
   const signOut = async () => {
@@ -137,17 +137,22 @@ const signUp = async (email: string, password: string, metaData?: { clinic_name:
       return false;
     }
 
-    // if (profile.plan_type === 'starter') {
-    //   if (featureName === 'calendar-sync' || featureName === 'advanced-settings') {
-    //     return false;
-    //   }
-    // }
-
     return true;
   };
 
+  const isNicheActive = profile ? ACTIVE_NICHES.includes(profile.niche) : false;
+
+  const isSubscriptionExpired = (() => {
+    if (!profile) return false;
+    if (profile.subscription_status === 'expired') return true;
+    if (profile.subscription_status === 'trial' && profile.trial_ends_at) {
+      return new Date(profile.trial_ends_at) < new Date();
+    }
+    return false;
+  })();
+
   return (
-    <AuthContext.Provider value={{ user, session, profile, loading, signIn, signUp, signOut, refreshProfile, canAccessFeature }}>
+    <AuthContext.Provider value={{ user, session, profile, loading, signIn, signUp, signOut, refreshProfile, canAccessFeature, isNicheActive, isSubscriptionExpired }}>
       {children}
     </AuthContext.Provider>
   );

@@ -67,7 +67,6 @@ export default function ConnectPage() {
 							let realPhoneNumber = null;
 							if (meResponse.ok) {
 								const meData = await meResponse.json();
-								// Format is usually "212600000000@c.us" -> We want "212600000000"
 								if (meData?.id) {
 									realPhoneNumber = meData.id.split('@')[0];
 								}
@@ -96,7 +95,7 @@ export default function ConnectPage() {
 							// 2. Update DB with 'connected' AND the Real Phone Number
 							const updateData: any = { whatsapp_status: 'connected' };
 							if (realPhoneNumber) {
-								updateData.phone = realPhoneNumber; // <--- SAVING THE SCANNED NUMBER HERE
+								updateData.phone = realPhoneNumber;
 							}
 
 							await supabase.from('profiles').update(updateData).eq('id', user.id);
@@ -186,11 +185,69 @@ export default function ConnectPage() {
 
 
 	// ------------------------------------------------------------------
+	// HELPER: Ensure session is started (not just created)
+	// ------------------------------------------------------------------
+	const ensureSessionStarted = async (sessionName: string) => {
+		try {
+			// Wait a moment for WAHA to process the creation
+			await new Promise(resolve => setTimeout(resolve, 1500));
+			
+			// Check if session needs starting
+			const checkRes = await fetch(`${WAHA_URL}/api/sessions/${sessionName}`, {
+				headers: { 'X-Api-Key': API_KEY }
+			});
+			
+			if (checkRes.ok) {
+				const data = await checkRes.json();
+				if (data.status === 'STOPPED' || data.status === 'FAILED') {
+					await fetch(`${WAHA_URL}/api/sessions/${sessionName}/start`, {
+						method: 'POST',
+						headers: { 'X-Api-Key': API_KEY }
+					});
+					// Wait for it to actually start
+					await new Promise(resolve => setTimeout(resolve, 2000));
+				}
+			}
+		} catch (e) {
+			console.error("ensureSessionStarted error:", e);
+		}
+	};
+
+	// ------------------------------------------------------------------
 	// 4. ACTION HANDLERS
 	// ------------------------------------------------------------------
 
 	const handleStartSession = async () => {
-		if (isSubscriptionExpired || !wahaSessionName) return;
+		if (isSubscriptionExpired || !user) return;
+
+		let sessionName = wahaSessionName;
+
+		// AUTO-CREATE: If no WAHA session name exists, generate one
+		if (!sessionName) {
+			const { data: profileData } = await supabase
+				.from('profiles')
+				.select('clinic_name')
+				.eq('id', user.id)
+				.maybeSingle();
+			
+			const clinicName = profileData?.clinic_name || 'clinic';
+			const sanitized = clinicName
+				.normalize('NFD')
+				.replace(/[\u0300-\u036f]/g, '')
+				.replace(/[^\x00-\x7F]/g, '')
+				.toLowerCase()
+				.replace(/[^a-z0-9]/g, '_')
+				.replace(/_+/g, '_')
+				.replace(/^_|_$/g, '')
+				.slice(0, 30);
+			
+			const random = Math.floor(Math.random() * 9000) + 1000;
+			sessionName = `${sanitized || 'clinic'}_${random}`;
+
+			// Save the generated session name to DB
+			await supabase.from('profiles').update({ waha_session_name: sessionName } as any).eq('id', user.id);
+			setWahaSessionName(sessionName);
+		}
 
 		setIsLoading(true);
 		try {
@@ -200,7 +257,7 @@ export default function ConnectPage() {
 				headers: { 'X-Api-Key': API_KEY }
 			});
 			const sessions = await checkRes.json();
-			const existing = sessions.find((s: any) => s.name === wahaSessionName);
+			const existing = sessions.find((s: any) => s.name === sessionName);
 
 			if (existing) {
 				if (existing.status === 'WORKING') {
@@ -210,15 +267,13 @@ export default function ConnectPage() {
 					setIsLoading(false);
 					return;
 				} else {
-					// REUSE EXISTING SESSION (STOPPED or SCANNING)
-					// Optionally restart it if needed, but often just fetching QR is enough if it's running
-					// If it's stopped, we might need to start it, but let's assume we just enter scanning mode
-					// If the session is STOPPED or FAILED, we must send a /start request to wake it up
+					// Session exists but is not working - restart it
 					if (existing.status === 'STOPPED' || existing.status === 'FAILED') {
-						await fetch(`${WAHA_URL}/api/sessions/${wahaSessionName}/start`, {
+						await fetch(`${WAHA_URL}/api/sessions/${sessionName}/start`, {
 							method: 'POST',
 							headers: { 'X-Api-Key': API_KEY }
 						}).catch(() => {});
+						await new Promise(resolve => setTimeout(resolve, 2000));
 					}
 
 					await supabase.from('profiles').update({ whatsapp_status: 'scanning' }).eq('id', user?.id);
@@ -229,7 +284,7 @@ export default function ConnectPage() {
 				}
 			}
 
-			// Start Session
+			// CREATE NEW Session with webhook config
 			await fetch(`${WAHA_URL}/api/sessions`, {
 				method: 'POST',
 				headers: {
@@ -237,7 +292,7 @@ export default function ConnectPage() {
 					'X-Api-Key': API_KEY
 				},
 				body: JSON.stringify({
-					name: wahaSessionName,
+					name: sessionName,
 					config: { 
 						proxy: null, 
 						debug: false,
@@ -256,6 +311,9 @@ export default function ConnectPage() {
 					}
 				})
 			});
+
+			// IMPORTANT: Explicitly start the session after creating it
+			await ensureSessionStarted(sessionName);
 
 			await supabase.from('profiles').update({ whatsapp_status: 'scanning' }).eq('id', user?.id);
 
@@ -284,14 +342,49 @@ export default function ConnectPage() {
 				headers: { 'X-Api-Key': API_KEY }
 			}).catch(() => {});
 
-			// 2. Clear out completely just in case
+			// 2. Delete completely
 			await fetch(`${WAHA_URL}/api/sessions/${wahaSessionName}`, {
 				method: 'DELETE',
 				headers: { 'X-Api-Key': API_KEY }
 			}).catch(() => {});
 
-			// 3. Fallback to start logic to recreate and attach webhooks
-			await handleStartSession();
+			await new Promise(resolve => setTimeout(resolve, 1000));
+
+			// 3. Recreate with webhooks
+			await fetch(`${WAHA_URL}/api/sessions`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					'X-Api-Key': API_KEY
+				},
+				body: JSON.stringify({
+					name: wahaSessionName,
+					config: { 
+						proxy: null, 
+						debug: false,
+						webhooks: [
+							{
+								url: BACKEND_WEBHOOK_URL,
+								events: ['message'],
+								retries: {
+									delaySeconds: 40,
+									attempts: 1,
+									policy: 'linear',
+								},
+								customHeaders: null,
+							},
+						],
+					}
+				})
+			});
+
+			// IMPORTANT: Explicitly start the session after recreating
+			await ensureSessionStarted(wahaSessionName);
+
+			await supabase.from('profiles').update({ whatsapp_status: 'scanning' }).eq('id', user?.id);
+			setStatus('scanning');
+			fetchQR();
+
 		} catch (error) {
 			console.error("Restart error:", error);
 			toast({ variant: "destructive", title: "Restart Failed", description: "Could not restart the session." });
@@ -309,13 +402,11 @@ export default function ConnectPage() {
 			await supabase.from('profiles').update({
 				whatsapp_status: 'disconnected',
 				phone: null,
-				// waha_session_name: null // <-- KEPT AS PER REQUEST
 			}).eq('id', user.id);
 		}
 
 		if (wahaSessionName) {
 			try {
-				// LOGOUT instead of DELETE to keep session alive but disconnect phone
 				await fetch(`${WAHA_URL}/api/sessions/${wahaSessionName}/logout`, {
 					method: 'POST',
 					headers: { 'X-Api-Key': API_KEY }
@@ -474,7 +565,7 @@ export default function ConnectPage() {
 										</div>
 										<Button
 											onClick={handleStartSession}
-											disabled={isLoading || !wahaSessionName}
+											disabled={isLoading}
 											className="w-full max-w-xs bg-[#25D366] hover:bg-[#25D366]/90 text-black font-bold h-11"
 										>
 											{isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <QrCode className="mr-2 h-5 w-5" />}

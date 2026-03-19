@@ -4,12 +4,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Calendar, Users, Clock, ArrowRight, Activity, Loader2 } from 'lucide-react';
+import { Calendar, Users, Clock, ArrowRight, Activity, Loader2, Bot, MessageSquare } from 'lucide-react';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 
 export default function DashboardPage() {
-  const { user, profile } = useAuth();
+  const { user, profile, isNicheActive } = useAuth();
+
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   
@@ -106,6 +107,33 @@ export default function DashboardPage() {
             </Button>
           </div>
         </div>
+
+        {/* Coming Soon for inactive niches */}
+        {!isNicheActive && (
+          <Card className="border-yellow-500/30 bg-yellow-500/5">
+            <CardContent className="p-6 text-center space-y-4">
+              <div className="h-16 w-16 mx-auto rounded-2xl bg-yellow-500/20 flex items-center justify-center">
+                <Bot className="h-8 w-8 text-yellow-500" />
+              </div>
+              <h3 className="text-xl font-bold text-yellow-400">🚧 AI Features Coming Soon</h3>
+              <p className="text-muted-foreground max-w-md mx-auto">
+                AI-powered features for your industry are under development. Calendar and appointment management are available now!
+              </p>
+              <div className="flex gap-3 justify-center">
+                <Button onClick={() => navigate('/appointments')} className="bg-primary hover:bg-primary/90">
+                  <Calendar className="mr-2 h-4 w-4" /> View Calendar
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => window.open(`https://wa.me/212600000000?text=${encodeURIComponent('Hello, I want to know when my industry will be supported on Mojib.AI.')}`, '_blank')}
+                  className="border-yellow-500/30 text-yellow-500 hover:bg-yellow-500/10"
+                >
+                  <MessageSquare className="mr-2 h-4 w-4" /> Contact Support
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Stats Grid */}
         <div className="grid gap-4 md:grid-cols-3">

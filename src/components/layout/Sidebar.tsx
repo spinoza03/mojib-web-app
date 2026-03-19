@@ -1,10 +1,19 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { Home, Calendar, Smartphone, Settings, LogOut, Shield } from 'lucide-react';
+import { Home, Calendar, Smartphone, Settings, LogOut, Shield, Stethoscope, HeartPulse, Scissors, Home as HomeIcon, Car, GraduationCap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
-import { useAuth, type FeatureName } from '@/hooks/useAuth';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'; // Import Shadcn Avatar
+import { useAuth, type FeatureName, type NicheType } from '@/hooks/useAuth';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+
+const NICHE_CONFIG: Record<NicheType, { label: string; icon: any; active: boolean }> = {
+  dentistry: { label: '🦷 Dentistry', icon: Stethoscope, active: true },
+  doctor: { label: '🩺 Doctor', icon: HeartPulse, active: true },
+  beauty_center: { label: '💆 Beauty', icon: Scissors, active: true },
+  immobilier: { label: '🏠 Real Estate', icon: HomeIcon, active: false },
+  car_location: { label: '🚗 Car Rental', icon: Car, active: false },
+  centre_formation: { label: '🎓 Training', icon: GraduationCap, active: false },
+};
 
 const navItems: Array<{ icon: typeof Home; label: string; path: string; feature: FeatureName }> = [
   { icon: Home, label: 'Dashboard', path: '/dashboard', feature: 'dashboard' },
@@ -76,8 +85,21 @@ export function Sidebar() {
             <span className="text-[#2589D0]">.AI</span>
           </span>
         </div>
-        <div className="px-6 py-3 border-b border-[hsl(var(--glass-border))]">
+        <div className="px-6 py-3 border-b border-[hsl(var(--glass-border))] space-y-2">
           {renderSubscriptionBadge()}
+          {profile?.niche && (
+            <div>
+              <Badge className={cn(
+                'text-xs',
+                NICHE_CONFIG[profile.niche]?.active
+                  ? 'bg-primary/10 text-primary border-primary/20'
+                  : 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20'
+              )}>
+                {NICHE_CONFIG[profile.niche]?.label || profile.niche}
+                {!NICHE_CONFIG[profile.niche]?.active && ' · Beta'}
+              </Badge>
+            </div>
+          )}
         </div>
 
         {/* Navigation */}

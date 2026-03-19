@@ -9,10 +9,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Bot, Save, Building2, Upload, Loader2, Info, Clock, Bell, Plus, Trash2 } from 'lucide-react';
+import { Bot, Save, Building2, Upload, Loader2, Info, Clock, Bell, Plus, Trash2, Languages, AlertTriangle, CreditCard, Copy, CheckCircle2 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
+import { Badge } from '@/components/ui/badge';
 import {
 	Tooltip,
 	TooltipContent,
@@ -20,17 +21,40 @@ import {
 	TooltipTrigger,
 } from '@/components/ui/tooltip';
 
+// Payment info constants
+const BANK_INFO = {
+	titulaire: 'ILYAS ALLALI',
+	rib: '230 400 5524413211017800 77',
+	iban: 'MA64 2304 0055 2441 3211 0178 0077',
+	swift: 'CIHMMAMC',
+};
+
+// Language options for bot
+const LANGUAGE_OPTIONS = [
+	{ id: 'darija', label: 'العربية الدارجة (Darija)', default: true },
+	{ id: 'french', label: 'Français', default: true },
+	{ id: 'english', label: 'English', default: false },
+	{ id: 'arabic_msa', label: 'العربية الفصحى (MSA)', default: false },
+];
+
 export default function SettingsPage() {
-	const { user, refreshProfile, profile, isSubscriptionExpired } = useAuth();
+	const { user, refreshProfile, profile, isSubscriptionExpired, isNicheActive } = useAuth();
 	const { toast } = useToast();
 
 	const [loading, setLoading] = useState(false);
 	const [uploading, setUploading] = useState(false);
+	const [copiedField, setCopiedField] = useState<string | null>(null);
 
-	const [prompt, setPrompt] = useState('');
+	// Profile fields
 	const [clinicName, setClinicName] = useState('');
 	const [avatarUrl, setAvatarUrl] = useState('');
 	const [isAiEnabled, setIsAiEnabled] = useState(true);
+
+	// Structured bot config fields (replaces raw prompt)
+	const [workingHours, setWorkingHours] = useState('Mon-Sat 09:00-18:00');
+	const [tone, setTone] = useState('professional,welcoming');
+	const [selectedLanguages, setSelectedLanguages] = useState<string[]>(['darija', 'french']);
+	const [additionalInfo, setAdditionalInfo] = useState('');
 
 	// Cooldown & Reminder state
 	const [cooldownSeconds, setCooldownSeconds] = useState(60);
@@ -48,12 +72,6 @@ export default function SettingsPage() {
 		const today = new Date();
 		const diff = endDate.getTime() - today.getTime();
 		return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
-	};
-
-	const whatsappNumber = '212600000000';
-	const getWhatsAppLink = (targetPlan: 'starter' | 'pro') => {
-		const message = targetPlan === 'pro' ? 'Hello, I want to upgrade to PRO.' : 'Hello, I want to change to STARTER.';
-		return `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`;
 	};
 
 	useEffect(() => {
@@ -78,19 +96,28 @@ export default function SettingsPage() {
 			}
 
 			// B. Load Bot Config
-			const { data: botData, error } = await supabase
+			const { data: botData } = await supabase
 				.from('bot_configs')
-				.select('system_prompt, cooldown_seconds, reminder_message, reminder_rules')
+				.select('system_prompt, cooldown_seconds, reminder_message, reminder_rules, working_hours, tone, languages, additional_info')
 				.eq('user_id', user.id)
 				.maybeSingle();
 
 			if (botData) {
 				// @ts-ignore
-				setPrompt(botData.system_prompt || '');
-				// @ts-ignore
 				if (botData.cooldown_seconds != null) setCooldownSeconds(botData.cooldown_seconds);
 				// @ts-ignore
 				if (botData.reminder_message) setReminderMessage(botData.reminder_message);
+				// @ts-ignore
+				if (botData.working_hours) setWorkingHours(botData.working_hours);
+				// @ts-ignore
+				if (botData.tone) setTone(botData.tone);
+				// @ts-ignore
+				if (botData.languages) {
+					// @ts-ignore
+					setSelectedLanguages(botData.languages.split(',').filter(Boolean));
+				}
+				// @ts-ignore
+				if (botData.additional_info) setAdditionalInfo(botData.additional_info);
 				// @ts-ignore
 				if (botData.reminder_rules && Array.isArray(botData.reminder_rules)) {
 					// @ts-ignore
@@ -148,24 +175,29 @@ export default function SettingsPage() {
 
 			if (profileError) throw profileError;
 
-			// B. Update Bot Config (FIXED: Using 'bot_configs')
+			// B. Update Bot Config
 			const { data: existingBot } = await supabase
 				.from('bot_configs')
 				.select('user_id')
 				.eq('user_id', user.id)
 				.maybeSingle();
 
-			// Convert reminder rules to DB format (only minutes_before + enabled)
+			// Convert reminder rules to DB format
 			const dbReminderRules = reminderRules.map(r => ({
 				minutes_before: r.minutes_before,
 				enabled: r.enabled
 			}));
 
 			const botPayload = {
-				system_prompt: prompt,
 				cooldown_seconds: cooldownSeconds,
 				reminder_message: reminderMessage,
-				reminder_rules: dbReminderRules
+				reminder_rules: dbReminderRules,
+				working_hours: workingHours,
+				tone: tone,
+				languages: selectedLanguages.join(','),
+				additional_info: additionalInfo,
+				// Clear system_prompt so backend auto-generates from structured fields
+				system_prompt: '',
 			};
 
 			let configError;
@@ -183,7 +215,7 @@ export default function SettingsPage() {
 			if (configError) throw configError;
 
 			await refreshProfile();
-			toast({ title: 'Saved', description: 'Settings and Prompt updated successfully.' });
+			toast({ title: 'Saved', description: 'Settings updated successfully.' });
 
 		} catch (error: any) {
 			toast({ variant: 'destructive', title: 'Error', description: error.message });
@@ -192,98 +224,267 @@ export default function SettingsPage() {
 		}
 	};
 
+	const toggleLanguage = (langId: string) => {
+		setSelectedLanguages(prev =>
+			prev.includes(langId)
+				? prev.filter(l => l !== langId)
+				: [...prev, langId]
+		);
+	};
+
+	const copyToClipboard = (text: string, field: string) => {
+		navigator.clipboard.writeText(text);
+		setCopiedField(field);
+		setTimeout(() => setCopiedField(null), 2000);
+		toast({ description: 'Copied to clipboard!' });
+	};
+
 	return (
 		<AppLayout>
 			<div className="space-y-6 max-w-4xl mx-auto">
 				<div>
 					<h1 className="text-3xl font-bold mb-2">Settings</h1>
-					<p className="text-muted-foreground">Manage your clinic identity and AI personality.</p>
+					<p className="text-muted-foreground">Manage your identity and AI configuration.</p>
 				</div>
 
-				<div className="grid gap-6 md:grid-cols-2">
-					{/* Identity Card */}
-					<Card className="glass-card">
-						<CardHeader>
-							<CardTitle className="flex items-center gap-2">
-								<Building2 className="h-5 w-5 text-primary" />
-								Clinic Identity
-							</CardTitle>
-						</CardHeader>
-						<CardContent className="space-y-6">
-							<div className="flex items-center gap-4">
-								<Avatar className="h-20 w-20 border-2 border-primary/20">
-									<AvatarImage src={avatarUrl} className="object-cover" />
-									<AvatarFallback className="text-xl font-bold bg-secondary">
-										{clinicName.substring(0, 2).toUpperCase() || 'DR'}
-									</AvatarFallback>
-								</Avatar>
-
-								<div className="space-y-2">
-									<Label htmlFor="logo-upload" className="cursor-pointer">
-										<div className="flex items-center gap-2 px-4 py-2 bg-secondary hover:bg-secondary/80 rounded-md text-sm font-medium transition-colors border border-input">
-											{uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-											{uploading ? 'Uploading...' : 'Upload Logo'}
-										</div>
-									</Label>
-									<Input id="logo-upload" type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} disabled={uploading} />
+				{/* ============== EXPIRED SUBSCRIPTION BANNER ============== */}
+				{isSubscriptionExpired && (
+					<Card className="border-red-500/30 bg-red-500/5">
+						<CardContent className="p-6">
+							<div className="flex items-start gap-4">
+								<div className="h-12 w-12 rounded-xl bg-red-500/20 flex items-center justify-center shrink-0">
+									<AlertTriangle className="h-6 w-6 text-red-500" />
 								</div>
-							</div>
+								<div className="flex-1 space-y-4">
+									<div>
+										<h3 className="text-lg font-semibold text-red-400">Your Trial / Subscription Has Expired</h3>
+										<p className="text-sm text-muted-foreground mt-1">
+											To continue using Mojib.AI, please contact us or make a bank transfer with these details:
+										</p>
+									</div>
+									
+									<div className="grid gap-3 p-4 rounded-xl bg-black/30 border border-white/10 font-mono text-sm">
+										{[
+											{ label: 'Titulaire', value: BANK_INFO.titulaire, key: 'titulaire' },
+											{ label: 'RIB', value: BANK_INFO.rib, key: 'rib' },
+											{ label: 'IBAN', value: BANK_INFO.iban, key: 'iban' },
+											{ label: 'Code SWIFT', value: BANK_INFO.swift, key: 'swift' },
+										].map(item => (
+											<div key={item.key} className="flex items-center justify-between gap-2">
+												<div className="flex-1 min-w-0">
+													<span className="text-muted-foreground text-xs">{item.label}:</span>
+													<p className="text-foreground truncate">{item.value}</p>
+												</div>
+												<Button
+													variant="ghost"
+													size="icon"
+													className="h-8 w-8 shrink-0"
+													onClick={() => copyToClipboard(item.value, item.key)}
+												>
+													{copiedField === item.key ? (
+														<CheckCircle2 className="h-4 w-4 text-green-500" />
+													) : (
+														<Copy className="h-4 w-4 text-muted-foreground" />
+													)}
+												</Button>
+											</div>
+										))}
+									</div>
 
-							<div className="space-y-2">
-								<Label>Clinic Name (Used in Greetings)</Label>
-								<Input
-									value={clinicName}
-									onChange={(e) => setClinicName(e.target.value)}
-									placeholder="e.g. Smile Dental"
-									disabled={isSubscriptionExpired}
-								/>
+									<div className="flex gap-3">
+										<Button
+											onClick={() => window.open(`https://wa.me/212600000000?text=${encodeURIComponent('Hello, I want to activate my Mojib.AI subscription.')}`, '_blank')}
+											className="bg-[#25D366] hover:bg-[#25D366]/90 text-black font-medium"
+										>
+											Contact on WhatsApp
+										</Button>
+									</div>
+								</div>
 							</div>
 						</CardContent>
 					</Card>
+				)}
 
-					{/* System Prompt Card */}
-					<Card className="glass-card md:row-span-2">
-						<CardHeader>
-							<CardTitle className="flex items-center gap-2">
-								<Bot className="h-5 w-5 text-primary" />
-								System Prompt
-							</CardTitle>
-							<CardDescription>
-								Instructions for your AI Receptionist.
-							</CardDescription>
-						</CardHeader>
-						<CardContent className="space-y-4">
-							<div className="flex items-center justify-between mb-2">
-								<div className="flex items-center gap-2">
-									<Label htmlFor="ai-toggle" className="text-sm font-medium">Enable AI</Label>
-									{isSubscriptionExpired && (
-										<TooltipProvider>
-											<Tooltip>
-												<TooltipTrigger><Info className="h-4 w-4 text-destructive" /></TooltipTrigger>
-												<TooltipContent>Plan expired.</TooltipContent>
-											</Tooltip>
-										</TooltipProvider>
-									)}
-								</div>
-								<Switch id="ai-toggle" checked={isAiEnabled} onCheckedChange={setIsAiEnabled} disabled={isSubscriptionExpired} />
+				{/* ============== COMING SOON OVERLAY FOR INACTIVE NICHES ============== */}
+				{!isNicheActive && (
+					<Card className="border-yellow-500/30 bg-yellow-500/5">
+						<CardContent className="p-6 text-center space-y-4">
+							<div className="h-16 w-16 mx-auto rounded-2xl bg-yellow-500/20 flex items-center justify-center">
+								<Bot className="h-8 w-8 text-yellow-500" />
 							</div>
-
-							<Textarea
-								value={prompt}
-								onChange={(e) => setPrompt(e.target.value)}
-								className="min-h-[300px] font-mono text-sm bg-secondary/50 leading-relaxed"
-								placeholder="You are a helpful receptionist..."
-								disabled={isSubscriptionExpired}
-							/>
-							<Button onClick={handleSave} disabled={loading || isSubscriptionExpired} className="w-full">
-								<Save className="mr-2 h-4 w-4" />
-								{loading ? 'Saving...' : 'Update Settings'}
+							<h3 className="text-xl font-bold text-yellow-400">🚧 Coming Soon</h3>
+							<p className="text-muted-foreground max-w-md mx-auto">
+								AI bot configuration for your industry is under development. 
+								The calendar and appointments features are available now. 
+								Contact support for more information.
+							</p>
+							<Button
+								variant="outline"
+								onClick={() => window.open(`https://wa.me/212600000000?text=${encodeURIComponent('Hello, I want to know when my industry will be supported on Mojib.AI.')}`, '_blank')}
+								className="border-yellow-500/30 text-yellow-500 hover:bg-yellow-500/10"
+							>
+								Contact Support
 							</Button>
 						</CardContent>
 					</Card>
-				</div>
+				)}
 
-				{/* Bot Behavior Card */}
+				{/* ============== MAIN CONFIG (Only for active niches) ============== */}
+				{isNicheActive && (
+					<>
+						<div className="grid gap-6 md:grid-cols-2">
+							{/* Identity Card */}
+							<Card className="glass-card">
+								<CardHeader>
+									<CardTitle className="flex items-center gap-2">
+										<Building2 className="h-5 w-5 text-primary" />
+										Clinic Identity
+									</CardTitle>
+								</CardHeader>
+								<CardContent className="space-y-6">
+									<div className="flex items-center gap-4">
+										<Avatar className="h-20 w-20 border-2 border-primary/20">
+											<AvatarImage src={avatarUrl} className="object-cover" />
+											<AvatarFallback className="text-xl font-bold bg-secondary">
+												{clinicName.substring(0, 2).toUpperCase() || 'DR'}
+											</AvatarFallback>
+										</Avatar>
+
+										<div className="space-y-2">
+											<Label htmlFor="logo-upload" className="cursor-pointer">
+												<div className="flex items-center gap-2 px-4 py-2 bg-secondary hover:bg-secondary/80 rounded-md text-sm font-medium transition-colors border border-input">
+													{uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+													{uploading ? 'Uploading...' : 'Upload Logo'}
+												</div>
+											</Label>
+											<Input id="logo-upload" type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} disabled={uploading} />
+										</div>
+									</div>
+
+									<div className="space-y-2">
+										<Label>Clinic / Business Name</Label>
+										<Input
+											value={clinicName}
+											onChange={(e) => setClinicName(e.target.value)}
+											placeholder="e.g. Smile Dental"
+											disabled={isSubscriptionExpired}
+										/>
+									</div>
+								</CardContent>
+							</Card>
+
+							{/* Bot Personality Card */}
+							<Card className="glass-card">
+								<CardHeader>
+									<CardTitle className="flex items-center gap-2">
+										<Bot className="h-5 w-5 text-primary" />
+										AI Agent Configuration
+									</CardTitle>
+									<CardDescription>
+										Configure how your AI receptionist behaves. No need to write prompts — just fill in the details.
+									</CardDescription>
+								</CardHeader>
+								<CardContent className="space-y-4">
+									<div className="flex items-center justify-between mb-2">
+										<div className="flex items-center gap-2">
+											<Label htmlFor="ai-toggle" className="text-sm font-medium">Enable AI</Label>
+											{isSubscriptionExpired && (
+												<TooltipProvider>
+													<Tooltip>
+														<TooltipTrigger><Info className="h-4 w-4 text-destructive" /></TooltipTrigger>
+														<TooltipContent>Plan expired.</TooltipContent>
+													</Tooltip>
+												</TooltipProvider>
+											)}
+										</div>
+										<Switch id="ai-toggle" checked={isAiEnabled} onCheckedChange={setIsAiEnabled} disabled={isSubscriptionExpired} />
+									</div>
+
+									{/* Working Hours */}
+									<div className="space-y-2">
+										<Label>Working Hours</Label>
+										<Input
+											value={workingHours}
+											onChange={(e) => setWorkingHours(e.target.value)}
+											placeholder="e.g. Mon-Sat 09:00-18:00"
+											disabled={isSubscriptionExpired}
+										/>
+										<p className="text-xs text-muted-foreground">The hours your clinic is open for appointments.</p>
+									</div>
+
+									{/* Tone */}
+									<div className="space-y-2">
+										<Label>Agent Tone</Label>
+										<Select value={tone} onValueChange={setTone} disabled={isSubscriptionExpired}>
+											<SelectTrigger>
+												<SelectValue />
+											</SelectTrigger>
+											<SelectContent>
+												<SelectItem value="professional,welcoming">Professional & Welcoming</SelectItem>
+												<SelectItem value="friendly,casual">Friendly & Casual</SelectItem>
+												<SelectItem value="formal,direct">Formal & Direct</SelectItem>
+											</SelectContent>
+										</Select>
+									</div>
+
+									{/* Languages */}
+									<div className="space-y-2">
+										<Label className="flex items-center gap-2">
+											<Languages className="h-4 w-4" />
+											Bot Languages
+										</Label>
+										<div className="flex flex-wrap gap-2">
+											{LANGUAGE_OPTIONS.map(lang => (
+												<button
+													key={lang.id}
+													type="button"
+													onClick={() => toggleLanguage(lang.id)}
+													disabled={isSubscriptionExpired}
+													className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+														selectedLanguages.includes(lang.id)
+															? 'bg-primary/20 text-primary border-primary/30'
+															: 'bg-secondary/30 text-muted-foreground border-border/50 hover:border-primary/20'
+													}`}
+												>
+													{lang.label}
+												</button>
+											))}
+										</div>
+										<p className="text-xs text-muted-foreground">Default: Darija (Arabic letters) + French</p>
+									</div>
+								</CardContent>
+							</Card>
+						</div>
+
+						{/* Additional Info Card */}
+						<Card className="glass-card">
+							<CardHeader>
+								<CardTitle className="flex items-center gap-2">
+									<Info className="h-5 w-5 text-primary" />
+									Additional Info for the AI
+								</CardTitle>
+								<CardDescription>
+									Add details the bot should know: prices, specialties, accepted insurance (CNSS/CNOPS), special procedures, etc.
+								</CardDescription>
+							</CardHeader>
+							<CardContent className="space-y-4">
+								<Textarea
+									value={additionalInfo}
+									onChange={(e) => setAdditionalInfo(e.target.value)}
+									className="min-h-[150px] font-mono text-sm bg-secondary/50 leading-relaxed"
+									placeholder={`Example:\n- Consultation: 200 DH\n- Détartrage: 300 DH\n- We accept CNSS\n- Specialties: Orthodontie, Implantologie\n- Free parking available`}
+									disabled={isSubscriptionExpired}
+								/>
+								<Button onClick={handleSave} disabled={loading || isSubscriptionExpired} className="w-full">
+									<Save className="mr-2 h-4 w-4" />
+									{loading ? 'Saving...' : 'Save Configuration'}
+								</Button>
+							</CardContent>
+						</Card>
+					</>
+				)}
+
+				{/* Bot Behavior Card (accessible for all niches) */}
 				<Card className="glass-card">
 					<CardHeader>
 						<CardTitle className="flex items-center gap-2">
@@ -411,14 +612,14 @@ export default function SettingsPage() {
 
 						<Button onClick={handleSave} disabled={loading || isSubscriptionExpired} className="w-full">
 							<Save className="mr-2 h-4 w-4" />
-							{loading ? 'Saving...' : 'Save Reminder Settings'}
+							{loading ? 'Saving...' : 'Save Settings'}
 						</Button>
 					</CardContent>
 				</Card>
 
 				{/* Subscription Section */}
 				<Card className="glass-card">
-					<CardHeader><CardTitle>Subscription</CardTitle></CardHeader>
+					<CardHeader><CardTitle className="flex items-center gap-2"><CreditCard className="h-5 w-5 text-primary" /> Subscription</CardTitle></CardHeader>
 					<CardContent className="space-y-6">
 						<div className="grid gap-4 md:grid-cols-3">
 							<div className="rounded-lg border p-4 bg-secondary/20">
@@ -434,10 +635,48 @@ export default function SettingsPage() {
 								<p className="text-lg font-semibold">{subscriptionStatus === 'trial' ? `${getTrialDaysLeft(trialEndsAt)} days` : 'N/A'}</p>
 							</div>
 						</div>
-						<div className="grid gap-4 md:grid-cols-2">
-							<Button variant="outline" onClick={() => window.open(getWhatsAppLink('starter'), '_blank')}>Contact for Starter</Button>
-							<Button onClick={() => window.open(getWhatsAppLink('pro'), '_blank')}>Contact for Pro</Button>
+
+						{/* Bank Transfer Details */}
+						<div className="p-4 rounded-xl bg-secondary/20 border border-border/50 space-y-3">
+							<h4 className="text-sm font-semibold flex items-center gap-2">
+								<CreditCard className="h-4 w-4 text-primary" />
+								Payment by Bank Transfer
+							</h4>
+							<div className="grid gap-2 font-mono text-sm">
+								{[
+									{ label: 'Titulaire', value: BANK_INFO.titulaire, key: 'sub_titulaire' },
+									{ label: 'RIB', value: BANK_INFO.rib, key: 'sub_rib' },
+									{ label: 'IBAN', value: BANK_INFO.iban, key: 'sub_iban' },
+									{ label: 'Code SWIFT', value: BANK_INFO.swift, key: 'sub_swift' },
+								].map(item => (
+									<div key={item.key} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-black/20">
+										<div className="flex-1 min-w-0">
+											<span className="text-muted-foreground text-xs">{item.label}:</span>
+											<p className="text-foreground text-xs truncate">{item.value}</p>
+										</div>
+										<Button
+											variant="ghost"
+											size="icon"
+											className="h-7 w-7 shrink-0"
+											onClick={() => copyToClipboard(item.value, item.key)}
+										>
+											{copiedField === item.key ? (
+												<CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+											) : (
+												<Copy className="h-3.5 w-3.5 text-muted-foreground" />
+											)}
+										</Button>
+									</div>
+								))}
+							</div>
 						</div>
+
+						<Button
+							onClick={() => window.open(`https://wa.me/212600000000?text=${encodeURIComponent('Hello, I want to activate/renew my Mojib.AI subscription.')}`, '_blank')}
+							className="w-full"
+						>
+							Contact for Activation
+						</Button>
 					</CardContent>
 				</Card>
 			</div>
