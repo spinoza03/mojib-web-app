@@ -142,7 +142,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (profile.role === 'superuser') return true;
 
-    // Do not block access to screens if subscription is expired
+    const isImmobilier = profile.niche === 'immobilier';
+    const isEssentiel = profile.plan_type === 'essentiel';
+
+    // Immobilier users should only see immobilier experience.
+    if (isImmobilier) {
+      const immobilierFeatures: FeatureName[] = ['dashboard', 'advanced-settings', 'immobilier-catalogue'];
+      return immobilierFeatures.includes(featureName);
+    }
+
+    // Non-immobilier users should not access immobilier modules.
+    if (featureName === 'immobilier-catalogue') return false;
+
+    // WhatsApp automation stays locked for Essentiel, upgrade available in-app.
+    if (featureName === 'chat' && isEssentiel) return false;
+
     return true;
   };
 

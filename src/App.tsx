@@ -49,7 +49,7 @@ function ProtectedFeatureRoute({
         <div className="text-center space-y-2 px-6">
           <p className="text-lg font-semibold">Subscription Required</p>
           <p className="text-sm text-muted-foreground">
-            Please contact support to upgrade your plan and unlock this feature.
+            Upgrade your plan from Settings to unlock this feature instantly.
           </p>
         </div>
       </div>

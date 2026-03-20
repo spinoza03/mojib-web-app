@@ -8,6 +8,7 @@ import { Loader2, Smartphone, QrCode, CheckCircle2, RefreshCw, Timer, XCircle, L
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { useNavigate } from 'react-router-dom';
 
 const WAHA_URL = 'https://waha.mojib.online';
 const API_KEY = 'my-secret-key';
@@ -17,6 +18,7 @@ const BACKEND_WEBHOOK_URL = 'http://72.62.237.248:3001/waha/webhook';
 export default function ConnectPage() {
 	const { user, isSubscriptionExpired } = useAuth();
 	const { toast } = useToast();
+	const navigate = useNavigate();
 
 	const [status, setStatus] = useState<'disconnected' | 'scanning' | 'connected'>('disconnected');
 	const [wahaSessionName, setWahaSessionName] = useState<string | null>(null);
@@ -450,10 +452,10 @@ export default function ConnectPage() {
 								</div>
 								<Button 
 									size="lg"
-									onClick={() => window.open(`https://wa.me/447749343372?text=${encodeURIComponent('Bonjour, je souhaite passer au plan supérieur (L\'Automatisé / L\'Elite) pour activer WhatsApp Mojib.AI.')}`, '_blank')}
+									onClick={() => navigate('/settings')}
 									className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold mt-4 shadow-lg"
 								>
-									Upgrader mon Abonnement
+									Upgrader depuis Parametres
 								</Button>
 							</div>
 						) : (

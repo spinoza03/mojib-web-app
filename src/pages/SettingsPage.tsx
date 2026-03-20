@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Bot, Save, Building2, Upload, Loader2, Info, Clock, Bell, Plus, Trash2, Languages, AlertTriangle, CreditCard, Copy, CheckCircle2, CalendarDays, Users } from 'lucide-react';
+import { Bot, Save, Building2, Upload, Loader2, Info, Clock, Bell, Plus, Trash2, Languages, AlertTriangle, CreditCard, CalendarDays, Users } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
@@ -21,13 +21,7 @@ import {
 	TooltipTrigger,
 } from '@/components/ui/tooltip';
 
-// Payment info constants
-const BANK_INFO = {
-	titulaire: 'ILYAS ALLALI',
-	rib: '230 400 5524413211017800 77',
-	iban: 'MA64 2304 0055 2441 3211 0178 0077',
-	swift: 'CIHMMAMC',
-};
+type PlanType = 'essentiel' | 'pro' | 'elite';
 
 // Language options for bot
 const LANGUAGE_OPTIONS = [
@@ -43,7 +37,7 @@ export default function SettingsPage() {
 
 	const [loading, setLoading] = useState(false);
 	const [uploading, setUploading] = useState(false);
-	const [copiedField, setCopiedField] = useState<string | null>(null);
+	const [planActionLoading, setPlanActionLoading] = useState<PlanType | null>(null);
 
 	// Profile fields
 	const [clinicName, setClinicName] = useState('');
@@ -64,7 +58,7 @@ export default function SettingsPage() {
 	const [reminderMessage, setReminderMessage] = useState('مرحبا {patient_name}، هاد تذكير بالموعد ديالك في {clinic_name} نهار {time}. نتمناو نشوفوك!');
 
 	// Subscription Helpers
-	const planType = profile?.plan_type || 'starter';
+	const planType = profile?.plan_type || 'essentiel';
 	const subscriptionStatus = profile?.subscription_status || 'trial';
 	const trialEndsAt = profile?.trial_ends_at;
 
@@ -240,11 +234,70 @@ export default function SettingsPage() {
 		);
 	};
 
-	const copyToClipboard = (text: string, field: string) => {
-		navigator.clipboard.writeText(text);
-		setCopiedField(field);
-		setTimeout(() => setCopiedField(null), 2000);
-		toast({ description: 'Copied to clipboard!' });
+	const isImmobilier = profile?.niche === 'immobilier';
+
+	const PLAN_DISPLAY = isImmobilier
+		? [
+			{
+				id: 'essentiel' as const,
+				name: "L'Organise",
+				price: '299 DH',
+				features: ['Catalogue immobilier', 'Suivi leads simple', 'Tableau de bord'],
+			},
+			{
+				id: 'pro' as const,
+				name: "L'Automatise",
+				price: '499 DH',
+				features: ["Tout dans L'Organise", 'CRM immobilier complet', 'Matching automatise'],
+			},
+			{
+				id: 'elite' as const,
+				name: "L'Elite",
+				price: '799 DH',
+				features: ["Tout dans L'Automatise", 'Finance avancee', 'Priorite performance'],
+			},
+		]
+		: [
+			{
+				id: 'essentiel' as const,
+				name: "L'Organise",
+				price: '299 DH',
+				features: ['Dossiers numeriques', 'Finance & marge', 'Calendrier intelligent'],
+			},
+			{
+				id: 'pro' as const,
+				name: "L'Automatise",
+				price: '499 DH',
+				features: ["Tout dans L'Organise", 'Receptionniste IA WhatsApp', 'Automatisation continue'],
+			},
+			{
+				id: 'elite' as const,
+				name: "L'Elite",
+				price: '799 DH',
+				features: ["Tout dans L'Automatise", 'Site web haute conversion', 'Accompagnement premium'],
+			},
+		];
+
+	const handlePlanChange = async (nextPlan: PlanType) => {
+		if (!user) return;
+		try {
+			setPlanActionLoading(nextPlan);
+			const updates: { plan_type: PlanType; subscription_status?: 'active' } = { plan_type: nextPlan };
+			if (subscriptionStatus === 'expired') {
+				updates.subscription_status = 'active';
+			}
+			const { error } = await supabase.from('profiles').update(updates).eq('id', user.id);
+			if (error) throw error;
+			await refreshProfile();
+			toast({
+				title: 'Plan mis a jour',
+				description: nextPlan === planType ? 'Votre plan est deja actif.' : 'Votre changement de plan est applique immediatement.',
+			});
+		} catch (error: any) {
+			toast({ variant: 'destructive', title: 'Erreur', description: error.message });
+		} finally {
+			setPlanActionLoading(null);
+		}
 	};
 
 	return (
@@ -267,45 +320,8 @@ export default function SettingsPage() {
 									<div>
 										<h3 className="text-lg font-semibold text-red-400">Votre Période d'Essai / Abonnement a Expiré</h3>
 										<p className="text-sm text-muted-foreground mt-1">
-											Pour continuer à utiliser Mojib.AI, veuillez nous contacter ou effectuer un virement bancaire avec ces coordonnées :
+											Choisissez ou mettez a niveau votre plan ci-dessous pour reactiver l'acces immediatement.
 										</p>
-									</div>
-									
-									<div className="grid gap-3 p-4 rounded-xl bg-black/30 border border-white/10 font-mono text-sm">
-										{[
-											{ label: 'Titulaire', value: BANK_INFO.titulaire, key: 'titulaire' },
-											{ label: 'RIB', value: BANK_INFO.rib, key: 'rib' },
-											{ label: 'IBAN', value: BANK_INFO.iban, key: 'iban' },
-											{ label: 'Code SWIFT', value: BANK_INFO.swift, key: 'swift' },
-										].map(item => (
-											<div key={item.key} className="flex items-center justify-between gap-2">
-												<div className="flex-1 min-w-0">
-													<span className="text-muted-foreground text-xs">{item.label}:</span>
-													<p className="text-foreground truncate">{item.value}</p>
-												</div>
-												<Button
-													variant="ghost"
-													size="icon"
-													className="h-8 w-8 shrink-0"
-													onClick={() => copyToClipboard(item.value, item.key)}
-												>
-													{copiedField === item.key ? (
-														<CheckCircle2 className="h-4 w-4 text-green-500" />
-													) : (
-														<Copy className="h-4 w-4 text-muted-foreground" />
-													)}
-												</Button>
-											</div>
-										))}
-									</div>
-
-									<div className="flex gap-3">
-										<Button
-											onClick={() => window.open(`https://wa.me/447749343372?text=${encodeURIComponent('Bonjour, je souhaite activer mon abonnement Mojib.AI.')}`, '_blank')}
-											className="bg-[#25D366] hover:bg-[#25D366]/90 text-black font-medium"
-										>
-											Contacter sur WhatsApp
-										</Button>
 									</div>
 								</div>
 							</div>
@@ -689,47 +705,37 @@ export default function SettingsPage() {
 							</div>
 						</div>
 
-						{/* Bank Transfer Details */}
-						<div className="p-4 rounded-xl bg-secondary/20 border border-border/50 space-y-3">
-							<h4 className="text-sm font-semibold flex items-center gap-2">
-								<CreditCard className="h-4 w-4 text-primary" />
-								Paiement par Virement Bancaire
-							</h4>
-							<div className="grid gap-2 font-mono text-sm">
-								{[
-									{ label: 'Titulaire', value: BANK_INFO.titulaire, key: 'sub_titulaire' },
-									{ label: 'RIB', value: BANK_INFO.rib, key: 'sub_rib' },
-									{ label: 'IBAN', value: BANK_INFO.iban, key: 'sub_iban' },
-									{ label: 'Code SWIFT', value: BANK_INFO.swift, key: 'sub_swift' },
-								].map(item => (
-									<div key={item.key} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-black/20">
-										<div className="flex-1 min-w-0">
-											<span className="text-muted-foreground text-xs">{item.label}:</span>
-											<p className="text-foreground text-xs truncate">{item.value}</p>
+						<div className="grid gap-4 md:grid-cols-3">
+							{PLAN_DISPLAY.map((plan) => {
+								const isCurrentPlan = plan.id === planType;
+								return (
+									<div key={plan.id} className={`rounded-xl border p-4 ${isCurrentPlan ? 'border-primary bg-primary/5' : 'border-border/60 bg-secondary/20'}`}>
+										<div className="flex items-center justify-between">
+											<p className="font-semibold">{plan.name}</p>
+											{isCurrentPlan && <Badge className="bg-primary/20 text-primary border-primary/30">Actuel</Badge>}
 										</div>
+										<p className="text-xl font-bold mt-1">{plan.price}<span className="text-sm font-normal text-muted-foreground">/mois</span></p>
+										<ul className="mt-3 space-y-1 text-xs text-muted-foreground">
+											{plan.features.map((feature) => (
+												<li key={feature}>- {feature}</li>
+											))}
+										</ul>
 										<Button
-											variant="ghost"
-											size="icon"
-											className="h-7 w-7 shrink-0"
-											onClick={() => copyToClipboard(item.value, item.key)}
+											className="w-full mt-4"
+											variant={isCurrentPlan ? 'secondary' : 'default'}
+											onClick={() => handlePlanChange(plan.id)}
+											disabled={planActionLoading !== null}
 										>
-											{copiedField === item.key ? (
-												<CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
-											) : (
-												<Copy className="h-3.5 w-3.5 text-muted-foreground" />
-											)}
+											{planActionLoading === plan.id
+												? 'Mise a jour...'
+												: isCurrentPlan
+													? 'Plan actif'
+													: `Passer a ${plan.name}`}
 										</Button>
 									</div>
-								))}
-							</div>
+								);
+							})}
 						</div>
-
-						<Button
-							onClick={() => window.open(`https://wa.me/447749343372?text=${encodeURIComponent(`Bonjour, je souhaite activer/renouveler mon abonnement ${planType !== 'elite' ? 'ou passer au plan Supérieur' : ''} sur Mojib.AI.`)}`, '_blank')}
-							className="w-full"
-						>
-							Contacter pour {planType !== 'elite' ? 'Activer ou Upgrader' : 'Activation'}
-						</Button>
 					</CardContent>
 				</Card>
 			</div>

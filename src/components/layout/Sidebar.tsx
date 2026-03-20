@@ -31,6 +31,7 @@ const navItems: Array<{ icon: any; label: string; path: string; feature: Feature
 export function Sidebar() {
   const location = useLocation();
   const { profile, signOut, user, canAccessFeature } = useAuth();
+  const isImmobilier = profile?.niche === 'immobilier';
 
   const handleLogout = async () => {
     await signOut();
@@ -111,19 +112,19 @@ export function Sidebar() {
         {/* Navigation */}
         <nav className="flex-1 px-3 py-6 space-y-1">
           {navItems.map((item) => {
+            const isImmobilierNav = item.path.startsWith('/immobilier');
+            if (isImmobilier && !isImmobilierNav && item.path !== '/dashboard' && item.path !== '/settings') {
+              return null;
+            }
+            if (!isImmobilier && isImmobilierNav) {
+              return null;
+            }
+
             const isActive = location.pathname === item.path;
             const isAllowed = canAccessFeature(item.feature);
 
             if (!isAllowed) {
-              return (
-                <div
-                  key={item.path}
-                  className="flex items-center gap-3 px-4 py-3 rounded-lg text-muted-foreground opacity-50 cursor-not-allowed"
-                >
-                  <item.icon className="h-5 w-5" />
-                  <span className="font-medium">{item.label}</span>
-                </div>
-              );
+              return null;
             }
             return (
               <NavLink

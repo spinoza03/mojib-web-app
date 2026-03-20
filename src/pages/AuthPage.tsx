@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -62,6 +62,43 @@ const PLANS: { id: PlanType; label: string; price: string; pitchFr: string; pitc
   }
 ];
 
+const IMMOBILIER_PLANS: typeof PLANS = [
+  {
+    id: 'essentiel',
+    label: "L'Organise",
+    price: '299 DH',
+    pitchFr: 'Lancez votre activite immobiliere avec une base solide et claire.',
+    pitchEn: 'Start your real estate activity with a solid and clear foundation.',
+    valuesFr: ['Catalogue immobilier', 'Suivi de base des leads', 'Tableau de bord activite'],
+    valuesEn: ['Real estate catalogue', 'Basic lead tracking', 'Activity dashboard'],
+    ctaFr: 'Structurez votre agence des aujourd hui.',
+    ctaEn: 'Structure your agency today.'
+  },
+  {
+    id: 'pro',
+    label: "L'Automatise",
+    price: '499 DH',
+    pitchFr: 'Optimisez la conversion de vos prospects et le matching des biens.',
+    pitchEn: 'Improve prospect conversion and property matching.',
+    valuesFr: ["Tout dans L'Organise", 'CRM immobilier complet', 'Matching automatise'],
+    valuesEn: ["Everything in L'Organise", 'Full real estate CRM', 'Automated matching'],
+    ctaFr: 'Accellerez vos ventes immobiliere.',
+    ctaEn: 'Accelerate your real estate deals.',
+    recommended: true
+  },
+  {
+    id: 'elite',
+    label: "L'Elite",
+    price: '799 DH',
+    pitchFr: 'Le mode performance maximale pour equipes et agences ambitieuses.',
+    pitchEn: 'Maximum performance mode for ambitious teams and agencies.',
+    valuesFr: ["Tout dans L'Automatise", 'Finance immobiliere avancee', 'Priorite support produit'],
+    valuesEn: ["Everything in L'Automatise", 'Advanced real estate finance', 'Priority product support'],
+    ctaFr: 'Passez au niveau agence leader.',
+    ctaEn: 'Move to top-tier agency operations.'
+  }
+];
+
 /** Generate a WAHA-safe session name: lowercase, no spaces, no arabic, + random digits */
 function generateWahaSessionName(clinicName: string): string {
   const sanitized = clinicName
@@ -79,11 +116,13 @@ function generateWahaSessionName(clinicName: string): string {
 }
 
 export default function AuthPage() {
-  const { signIn, signUp, user, loading } = useAuth();
+  const { signIn, signUp, user, loading, refreshProfile } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [showPlansModal, setShowPlansModal] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<PlanType>('essentiel');
+  const [savingPlan, setSavingPlan] = useState(false);
 
   // Form States
   const [email, setEmail] = useState('');
@@ -102,6 +141,12 @@ export default function AuthPage() {
   if (user && !loading && !showPlansModal) {
     return <Navigate to="/dashboard" replace />;
   }
+
+  useEffect(() => {
+    if (!showPlansModal) return;
+    const defaultPlan = selectedNiche === 'immobilier' ? 'pro' : 'essentiel';
+    setSelectedPlan(defaultPlan);
+  }, [showPlansModal, selectedNiche]);
 
   const t = {
     en: {
@@ -162,6 +207,8 @@ export default function AuthPage() {
     },
   }[lang];
 
+  const plansForSelectedNiche = selectedNiche === 'immobilier' ? IMMOBILIER_PLANS : PLANS;
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -217,6 +264,40 @@ export default function AuthPage() {
     } else {
       toast({ title: t.welcome, description: t.accountCreated });
       setShowPlansModal(true);
+    }
+  };
+
+  const handleChoosePlan = async () => {
+    if (!user) {
+      setShowPlansModal(false);
+      navigate('/dashboard');
+      return;
+    }
+
+    try {
+      setSavingPlan(true);
+      const { error } = await supabase
+        .from('profiles')
+        .update({ plan_type: selectedPlan })
+        .eq('id', user.id);
+
+      if (error) throw error;
+
+      await refreshProfile();
+      toast({
+        title: lang === 'fr' ? 'Plan enregistré' : 'Plan saved',
+        description: lang === 'fr' ? 'Vous pouvez changer de plan à tout moment depuis Paramètres.' : 'You can change your plan anytime from Settings.',
+      });
+      setShowPlansModal(false);
+      navigate('/dashboard');
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: lang === 'fr' ? 'Erreur' : 'Error',
+        description: error?.message || (lang === 'fr' ? 'Impossible de choisir le plan.' : 'Unable to choose plan.'),
+      });
+    } finally {
+      setSavingPlan(false);
     }
   };
 
@@ -413,12 +494,14 @@ export default function AuthPage() {
           </DialogHeader>
 
           <div className="grid gap-4 md:grid-cols-3 pt-2">
-            {PLANS.map((plan) => (
+            {plansForSelectedNiche.map((plan) => (
               <div
                 key={plan.id}
+                onClick={() => setSelectedPlan(plan.id)}
                 className={cn(
-                  'relative rounded-2xl border bg-secondary/20 p-4 flex flex-col',
-                  plan.recommended ? 'border-primary/30' : 'border-white/10'
+                  'relative rounded-2xl border bg-secondary/20 p-4 flex flex-col cursor-pointer transition-all',
+                  plan.recommended ? 'border-primary/30' : 'border-white/10',
+                  selectedPlan === plan.id && 'ring-2 ring-primary border-primary'
                 )}
               >
                 {plan.recommended && (
@@ -461,15 +544,13 @@ export default function AuthPage() {
               {lang === 'fr' ? 'Continuer' : 'Continue'}
             </Button>
             <Button
-              onClick={() => {
-                const msg = lang === 'fr'
-                  ? 'Bonjour, je viens de créer mon compte. Je souhaite activer/choisir ma formule sur Mojib.AI.'
-                  : 'Hi, I just created my account. I want to activate/select a plan on Mojib.AI.';
-                window.open(`https://wa.me/447749343372?text=${encodeURIComponent(msg)}`, '_blank');
-              }}
+              onClick={handleChoosePlan}
+              disabled={savingPlan}
               className="sm:w-auto"
             >
-              {lang === 'fr' ? 'Parler à un conseiller' : 'Talk to a specialist'}
+              {savingPlan
+                ? (lang === 'fr' ? 'Enregistrement...' : 'Saving...')
+                : (lang === 'fr' ? 'Choisir ce plan' : 'Choose this plan')}
             </Button>
           </div>
         </DialogContent>
