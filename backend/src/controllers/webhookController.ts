@@ -1,7 +1,18 @@
 import { Request, Response } from 'express';
-import { getBotSettings, getChatHistory, saveMessage, getClinicBotSettingsBySession, checkAvailability, bookAppointment } from '../services/supabase';
-import { generateResponse, generateDoctorResponse, transcribeAudio, DOCTOR_TOOLS } from '../services/openai';
-import { sendText, startTyping, downloadMedia } from '../services/waha';
+import {
+    getBotSettings,
+    getChatHistory,
+    saveMessage,
+    getClinicBotSettingsBySession,
+    checkAvailability,
+    bookAppointment,
+    getRealEstatePropertiesForPrompt,
+    searchRealEstateProperties,
+    getRealEstatePropertyPhotos,
+    bookRealEstatePropertyVisit
+} from '../services/supabase';
+import { generateResponse, generateDoctorResponse, transcribeAudio, DOCTOR_TOOLS, REAL_ESTATE_TOOLS } from '../services/openai';
+import { sendText, startTyping, downloadMedia, sendImage } from '../services/waha';
 import OpenAI from 'openai';
 
 // Interface based on WAHA webhook payload structure
@@ -78,7 +89,13 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
         }
 
         const cooldown_seconds = config.cooldown_seconds || 60;
-        const system_prompt = config.system_prompt;
+        let system_prompt = config.system_prompt;
+
+        // Immobilier: inject the real-estate catalogue into the prompt
+        if (config.niche === 'immobilier') {
+            const propertiesBlock = await getRealEstatePropertiesForPrompt(config.user_id);
+            system_prompt = String(system_prompt || '').replace('{{uploaded_properties_list}}', propertiesBlock);
+        }
 
         // 2. Cooldown & Manual Takeover Check
         const chatHistory = await getChatHistory(phone_number);
@@ -183,9 +200,12 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
         await startTyping(phone_number, sessionName);
 
         // 5. Generate AI Response
-        let aiMessage = await (isDoctorBot 
-            ? generateDoctorResponse(system_prompt, patientPhone, chatHistory, textContent, imageUrl) 
-            : generateResponse(system_prompt, patientPhone, chatHistory, textContent, imageUrl));
+        const isRealEstateBot = config.niche === 'immobilier';
+        let aiMessage = await (isDoctorBot
+            ? generateDoctorResponse(system_prompt, patientPhone, chatHistory, textContent, imageUrl)
+            : isRealEstateBot
+                ? generateResponse(system_prompt, patientPhone, chatHistory, textContent, imageUrl, REAL_ESTATE_TOOLS)
+                : generateResponse(system_prompt, patientPhone, chatHistory, textContent, imageUrl));
 
         if (!aiMessage) {
             res.status(500).send('Failed to generate AI response');
@@ -193,6 +213,8 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
         }
 
         let finalResponseContent = aiMessage.content;
+        // Immobilier: if the AI requests property photos, we send them first.
+        let propertyPhotosToSend: string[] = [];
 
         // 6. Handle Function Calling
         if (aiMessage.tool_calls && aiMessage.tool_calls.length > 0) {
@@ -205,7 +227,7 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
                 { role: 'user', content: textContent },
                 aiMessage // push the assistant's tool_call message
             ];
-            
+
             for (const toolCall of aiMessage.tool_calls) {
                 if (toolCall.function.name === 'notify_admin_custom_lead') {
                     const args = JSON.parse(toolCall.function.arguments);
@@ -229,6 +251,34 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
                     const booking = await bookAppointment(config.user_id, args.start_date_time, args.patient_phone, args.patient_name, args.reason);
                     tempMessages.push({ role: "tool", tool_call_id: toolCall.id, content: JSON.stringify(booking) });
                 }
+                else if (toolCall.function.name === 'search_properties') {
+                    const args = JSON.parse(toolCall.function.arguments);
+                    console.log(`[TOOL] Search Properties (${config.user_id}):`, args);
+                    const result = await searchRealEstateProperties(config.user_id, args.criteria || {});
+                    tempMessages.push({ role: "tool", tool_call_id: toolCall.id, content: JSON.stringify(result) });
+                }
+                else if (toolCall.function.name === 'get_property_photos') {
+                    const args = JSON.parse(toolCall.function.arguments);
+                    console.log(`[TOOL] Get Property Photos (${config.user_id}):`, args);
+                    const result = await getRealEstatePropertyPhotos(config.user_id, args.property_id);
+                    if (result?.photos?.length) {
+                        propertyPhotosToSend = result.photos;
+                    }
+                    tempMessages.push({ role: "tool", tool_call_id: toolCall.id, content: JSON.stringify(result) });
+                }
+                else if (toolCall.function.name === 'book_property_visit') {
+                    const args = JSON.parse(toolCall.function.arguments);
+                    console.log(`[TOOL] Book Property Visit (${config.user_id}):`, args);
+                    const result = await bookRealEstatePropertyVisit(
+                        config.user_id,
+                        args.property_id,
+                        args.client_phone,
+                        args.client_name,
+                        args.start_time,
+                        args.notes
+                    );
+                    tempMessages.push({ role: "tool", tool_call_id: toolCall.id, content: JSON.stringify(result) });
+                }
             }
 
             // Request a new completion with the tool results appended
@@ -236,7 +286,7 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
                 const followUpResponse = await openaiClient.chat.completions.create({
                     model: "gpt-4o-mini",
                     messages: tempMessages,
-                    tools: isDoctorBot ? DOCTOR_TOOLS : undefined
+                    tools: isDoctorBot ? DOCTOR_TOOLS : (isRealEstateBot ? REAL_ESTATE_TOOLS : undefined)
                 });
                 finalResponseContent = followUpResponse.choices[0].message.content;
             } catch (err) {
@@ -250,6 +300,11 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
         }
         
         if (finalResponseContent) {
+            if (propertyPhotosToSend?.length) {
+                for (const photoUrl of propertyPhotosToSend.slice(0, 3)) {
+                    await sendImage(phone_number, photoUrl, sessionName);
+                }
+            }
             // Send standard text using the dynamic sessionName
             await sendText(phone_number, finalResponseContent, sessionName);
             // Save outgoing message

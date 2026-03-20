@@ -21,6 +21,10 @@ const navItems: Array<{ icon: any; label: string; path: string; feature: Feature
   { icon: PieChart, label: 'Finances & Marge', path: '/finance', feature: 'finance' },
   { icon: Calendar, label: 'Gérer Rendez-vous', path: '/appointments', feature: 'calendar-sync' },
   { icon: Smartphone, label: 'Connecter WhatsApp', path: '/connect', feature: 'chat' },
+  { icon: HomeIcon, label: 'Catalogue Immobilier', path: '/immobilier', feature: 'immobilier-catalogue' },
+  { icon: Users, label: 'CRM Immobilier', path: '/immobilier/crm', feature: 'immobilier-catalogue' },
+  { icon: Calendar, label: 'Matching Immobilier', path: '/immobilier/matching', feature: 'immobilier-catalogue' },
+  { icon: PieChart, label: 'Finance Immobilier', path: '/immobilier/finance', feature: 'immobilier-catalogue' },
   { icon: Settings, label: 'Configuration IA', path: '/settings', feature: 'advanced-settings' },
 ];
 

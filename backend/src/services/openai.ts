@@ -80,6 +80,67 @@ export const DOCTOR_TOOLS = [
     }
 ];
 
+export const REAL_ESTATE_TOOLS = [
+    {
+        type: "function" as const,
+        function: {
+            name: "search_properties",
+            description: "Search the agency real-estate catalogue and return the best matching properties. Use when the user provides criteria (quartier, budget, surface, bedrooms, status).",
+            parameters: {
+                type: "object",
+                properties: {
+                    criteria: {
+                        type: "object",
+                        description: "User criteria extracted from the conversation.",
+                        properties: {
+                            quartier: { type: "string" },
+                            budget_min: { type: "number" },
+                            budget_max: { type: "number" },
+                            surface_min: { type: "number" },
+                            bedrooms_min: { type: "number" },
+                            status: { type: "string", description: "Disponible, Réservé, Vendu, Loué" }
+                        },
+                        required: []
+                    }
+                },
+                required: ["criteria"]
+            }
+        }
+    },
+    {
+        type: "function" as const,
+        function: {
+            name: "get_property_photos",
+            description: "Fetch photo URLs for a specific property so you can send them to the client.",
+            parameters: {
+                type: "object",
+                properties: {
+                    property_id: { type: "string" }
+                },
+                required: ["property_id"]
+            }
+        }
+    },
+    {
+        type: "function" as const,
+        function: {
+            name: "book_property_visit",
+            description: "Book a real-estate property visit (creates a record in real_estate_visits). Use only after user confirms a time and provides name + phone.",
+            parameters: {
+                type: "object",
+                properties: {
+                    property_id: { type: "string" },
+                    client_phone: { type: "string" },
+                    client_name: { type: "string" },
+                    start_time: { type: "string", description: "ISO string or YYYY-MM-DD HH:mm:ss+00" },
+                    notes: { type: "string" }
+                },
+                required: ["property_id", "client_phone", "client_name", "start_time", "notes"]
+            }
+        }
+    }
+];
+
 export async function transcribeAudio(audioFilePath: string): Promise<string | null> {
     try {
         const response = await openai.audio.transcriptions.create({

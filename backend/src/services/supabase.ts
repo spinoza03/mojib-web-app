@@ -84,13 +84,25 @@ export async function getClinicBotSettingsBySession(sessionName: string) {
     // `data` is the JSON object returned from the RPC
     let systemPrompt = data.system_prompt || '';
     if (!systemPrompt) {
-        systemPrompt = generateMasterPrompt(
-            data.clinic_name,
-            data.working_hours,
-            data.tone,
-            data.languages,
-            data.additional_info
-        );
+        // When the app has niche = immobilier, we want a completely different prompt style.
+        if (data.niche === 'immobilier') {
+            systemPrompt = generateRealEstateMasterPrompt(
+                data.clinic_name,
+                'Anass',
+                data.working_hours,
+                data.tone,
+                data.languages,
+                data.additional_info
+            );
+        } else {
+            systemPrompt = generateMasterPrompt(
+                data.clinic_name,
+                data.working_hours,
+                data.tone,
+                data.languages,
+                data.additional_info
+            );
+        }
     }
 
     return {
@@ -98,9 +110,82 @@ export async function getClinicBotSettingsBySession(sessionName: string) {
         clinic_name: data.clinic_name,
         subscription_status: data.subscription_status,
         waha_session_name: data.waha_session_name,
+        niche: data.niche,
         system_prompt: systemPrompt,
         cooldown_seconds: data.cooldown_seconds
     };
+}
+
+/**
+ * Formats the clinic real-estate catalogue into a text block for prompt injection.
+ * The system prompt will include {{uploaded_properties_list}} placeholder.
+ */
+export async function getRealEstatePropertiesForPrompt(userId: string): Promise<string> {
+    const { data: properties, error: propError } = await supabase
+        .from('real_estate_properties')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+    if (propError) {
+        console.error('[RealEstate] Error fetching properties:', propError);
+        return '[]';
+    }
+
+    const list = properties || [];
+    if (list.length === 0) return '[]';
+
+    const propertyIds = list.map((p: any) => p.id);
+
+    const { data: media, error: mediaError } = await supabase
+        .from('real_estate_property_media')
+        .select('property_id, media_type, public_url, file_path')
+        .in('property_id', propertyIds);
+
+    if (mediaError) {
+        console.error('[RealEstate] Error fetching property media:', mediaError);
+    }
+
+    const mediaByPropertyId: Record<string, any[]> = {};
+    for (const m of media || []) {
+        if (!mediaByPropertyId[m.property_id]) mediaByPropertyId[m.property_id] = [];
+        mediaByPropertyId[m.property_id].push(m);
+    }
+
+    const formatList = list.map((p: any) => {
+        const mediaItems = mediaByPropertyId[p.id] || [];
+        const photos = mediaItems
+            .filter((m: any) => m.media_type === 'photo')
+            .map((m: any) => m.public_url || m.file_path)
+            .filter(Boolean)
+            .slice(0, 5);
+
+        const videos = mediaItems
+            .filter((m: any) => m.media_type === 'video')
+            .map((m: any) => m.public_url || m.file_path)
+            .filter(Boolean)
+            .slice(0, 2);
+
+        const atouts = p.attributes ? JSON.stringify(p.attributes) : '{}';
+
+        return [
+            `- [PropertyID: ${p.id}] ${p.title}`,
+            `  Prix: ${p.price_dh ?? 'N/A'} DH`,
+            `  Quartier: ${p.quartier ?? 'N/A'}`,
+            `  Surface: ${p.surface_m2 ?? 'N/A'} m²`,
+            `  Chambres: ${p.bedrooms ?? 'N/A'}`,
+            `  Etage: ${p.floor ?? 'N/A'}`,
+            `  Orientation: ${p.orientation ?? 'N/A'}`,
+            `  Etat: ${p.condition ?? 'N/A'}`,
+            `  Statut: ${p.status ?? 'N/A'}`,
+            `  GPS: ${p.gps_lat ?? 'N/A'}, ${p.gps_lng ?? 'N/A'}`,
+            `  Atouts: ${atouts}`,
+            `  Photos: ${photos.join(', ') || 'N/A'}`,
+            `  Videos: ${videos.join(', ') || 'N/A'}`,
+        ].join('\n');
+    });
+
+    return formatList.join('\n');
 }
 
 /**
@@ -206,6 +291,91 @@ Patient: darani wahed darsa
 Assistant: ما يكون باس عندك! أحسن حاجة هي تجي العيادة باش الطبيب يشوف حالتك ويدير لك التشخيص المناسب. واش تبغي نحجزو لك موعد هاد السيمانة؟`;
 }
 
+/**
+ * Real-estate agent prompt: "Expert en Matching Immobilier"
+ * {{uploaded_properties_list}} and {{image_url}} are placeholders filled at runtime.
+ */
+function generateRealEstateMasterPrompt(
+    agencyName: string,
+    agentName: string,
+    workingHours: string,
+    tone: string,
+    languages: string,
+    additionalInfo: string
+): string {
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('en-CA');
+    const dayStr = now.toLocaleDateString('en-US', { weekday: 'long' });
+    const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+
+    const toneDesc =
+        tone === 'friendly,casual'
+            ? 'Friendly, warm, persuasive and high-energy'
+            : tone === 'formal,direct'
+                ? 'Formal, direct, concise and confident'
+                : 'Professional, prestigious, reassuring and highly persuasive';
+
+    // NOTE: We keep language rules simple here; the agent adapts based on user messages.
+    const langInstruction = languages?.includes('french') ? 'Parle en Français quand le client parle Français.' : '';
+
+    return `[TEMPORAL CONTEXT]
+Today's Date: ${dateStr} (YYYY-MM-DD)
+Today's Day: ${dayStr}
+Current Time: ${timeStr}
+
+[SYSTEM_ROLE]
+Tu es l'Expert Commercial de l'agence immobilière ${agencyName}.
+Ton nom est ${agentName}.
+Ta mission est de vendre les biens du catalogue et de programmer des visites.
+Tu parles couramment le Français et la Darija marocaine (en caractères arabes).
+
+[KNOWLEDGE BASE]
+Voici la liste des biens disponibles actuellement dans ton agence :
+{{uploaded_properties_list}}
+
+[CORE LOGIC : NEEDS DISCOVERY]
+Dès qu'un client te contacte, tu dois identifier ses "Must-Have" :
+- Type & Localisation : (Appartement, Villa, Magasin, Terrain) + Quartier
+- Configuration : nombre de chambres ("Byout") + salons
+- Spécificités : Chouka (coin), ascenseur, garage, sans vis-à-vis
+- Budget : une fourchette de prix
+
+[SEARCH & SUGGESTION PROTOCOL]
+Match Parfait :
+- Si un bien correspond à 90%+, présente-le avec enthousiasme.
+- IMPORTANT : propose systématiquement l'envoi des photos/vidéos liées au bien.
+- Tu dois inclure le lien de la photo ou l'ID de l'image {{image_url}} pour que le système l'envoie.
+
+Le Pivot (Conviction) :
+- Si tu n'as pas exactement ce qu'il veut, analyse le stock et propose l'alternative la plus proche.
+- Argument de pivot (exemple) :
+  "Ma'ndich exactement [critère] fhad l-quartier, walakin 'ndi wahed l-hwa mchmach o chouka fih [quasi-equivalent]. Zayd ghir chwiya f l-prix walakin l-finition dyalo hsan bzaf. Chof tsawer dyalo..."
+
+Engagement Visuel :
+- Ne décris jamais un bien sans proposer d'envoyer les photos.
+
+[MANDATORY INTERACTION RULES]
+Ton : Professionnel, rassurant, très convaincant (même à 2h du matin).
+Langue : Réponds dans la langue du client (Darija arabic script si Darija).
+Conversion : Ton but final est de dire :
+"Foukach mnasbak tji tchof l-mehal b 'aynik? 'ndi l-waqt khawi gheda m'a 10h ola 16h."
+
+[DARIJA REAL ESTATE DICTIONARY]
+Chouka : coin très ensoleillé.
+Mchmach : très ensoleillé.
+Sans Vis-à-vis : ma fihch t-tlal.
+Finition : l-khidma / slah.
+Byout : chambres.
+
+[SALES GOAL]
+Transformer un curieux sur WhatsApp en une visite physique programmée dans l'agenda.
+
+[AGENT STYLE]
+Ton: ${toneDesc}.
+${additionalInfo ? `Additional Information:\n${additionalInfo}` : ''}
+${workingHours ? `Working Hours: ${workingHours}` : ''}`;
+}
+
 
 export async function checkAvailability(doctorId: string, dateTimeISO: string) {
     // dateTimeISO is e.g. "2026-02-11 00:00:00+00"
@@ -277,6 +447,168 @@ export async function bookAppointment(doctorId: string, startDateTime: string, p
         },
         instruction_for_ai: "Confirm the appointment details to the patient in professional Moroccan Darija. Be welcoming and mention the specific time."
     };
+}
+
+// ==========================================
+// REAL ESTATE (Immobilier) - catalogue tools
+// ==========================================
+
+export async function searchRealEstateProperties(
+    userId: string,
+    criteria: any
+): Promise<{ status: string; properties: any[]; applied: any }> {
+    try {
+        let query = supabase
+            .from('real_estate_properties')
+            .select('id,title,price_dh,quartier,surface_m2,bedrooms,floor,orientation,condition,status,gps_lat,gps_lng,attributes')
+            .eq('user_id', userId);
+
+        const applied: any = {};
+
+        const quartier = criteria?.quartier;
+        const budgetMin = criteria?.budget_min;
+        const budgetMax = criteria?.budget_max;
+        const surfaceMin = criteria?.surface_min;
+        const bedroomsMin = criteria?.bedrooms_min;
+        const status = criteria?.status;
+
+        if (quartier) {
+            query = query.ilike('quartier', `%${String(quartier)}%`);
+            applied.quartier = quartier;
+        }
+        if (budgetMin != null && !Number.isNaN(Number(budgetMin))) {
+            query = query.gte('price_dh', Number(budgetMin));
+            applied.budget_min = budgetMin;
+        }
+        if (budgetMax != null && !Number.isNaN(Number(budgetMax))) {
+            query = query.lte('price_dh', Number(budgetMax));
+            applied.budget_max = budgetMax;
+        }
+        if (surfaceMin != null && !Number.isNaN(Number(surfaceMin))) {
+            query = query.gte('surface_m2', Number(surfaceMin));
+            applied.surface_min = surfaceMin;
+        }
+        if (bedroomsMin != null && !Number.isNaN(Number(bedroomsMin))) {
+            query = query.gte('bedrooms', Number(bedroomsMin));
+            applied.bedrooms_min = bedroomsMin;
+        }
+        if (status) {
+            query = query.eq('status', String(status));
+            applied.status = status;
+        }
+
+        query = query.order('updated_at', { ascending: false }).limit(10);
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        return {
+            status: 'success',
+            properties: data || [],
+            applied
+        };
+    } catch (error: any) {
+        console.error('[RealEstate] search properties failed:', error);
+        return { status: 'error', properties: [], applied: criteria || null };
+    }
+}
+
+export async function getRealEstatePropertyPhotos(
+    userId: string,
+    propertyId: string
+): Promise<{ status: string; photos: string[] }> {
+    try {
+        const { data, error } = await supabase
+            .from('real_estate_property_media')
+            .select('public_url,file_path,media_type')
+            .eq('user_id', userId)
+            .eq('property_id', propertyId)
+            .eq('media_type', 'photo')
+            .order('created_at', { ascending: true });
+
+        if (error) throw error;
+
+        const photos = (data || [])
+            .map((m: any) => m.public_url || m.file_path)
+            .filter(Boolean)
+            .slice(0, 8);
+
+        return { status: 'success', photos };
+    } catch (error: any) {
+        console.error('[RealEstate] get photos failed:', error);
+        return { status: 'error', photos: [] };
+    }
+}
+
+export async function bookRealEstatePropertyVisit(
+    userId: string,
+    propertyId: string,
+    clientPhone: string,
+    clientName: string,
+    startTime: string,
+    notes: string
+): Promise<{ status: string; visit?: any }> {
+    try {
+        const cleanPhone = clientPhone ? String(clientPhone).replace(/\D/g, '') : '';
+        const start = new Date(startTime);
+        if (Number.isNaN(start.getTime())) {
+            return { status: 'error', visit: { message: 'Invalid start_time' } };
+        }
+        const end = new Date(start.getTime() + 30 * 60000);
+
+        // Upsert client (minimal approach: find by phone)
+        let clientId: string | null = null;
+        if (cleanPhone) {
+            const { data: existingClient } = await supabase
+                .from('real_estate_clients')
+                .select('id')
+                .eq('user_id', userId)
+                .eq('phone', cleanPhone)
+                .maybeSingle();
+
+            clientId = existingClient?.id ?? null;
+
+            if (!clientId) {
+                const { data: createdClient, error: createClientError } = await supabase
+                    .from('real_estate_clients')
+                    .insert({
+                        user_id: userId,
+                        role: 'acquereur',
+                        full_name: clientName,
+                        phone: cleanPhone,
+                        details: {}
+                    })
+                    .select('id')
+                    .single();
+
+                if (createClientError) throw createClientError;
+                clientId = createdClient?.id ?? null;
+            }
+        }
+
+        const { data: createdVisit, error: createVisitError } = await supabase
+            .from('real_estate_visits')
+            .insert({
+                user_id: userId,
+                property_id: propertyId,
+                client_id: clientId,
+                client_name: clientName,
+                client_phone: cleanPhone || clientPhone,
+                start_time: start.toISOString(),
+                end_time: end.toISOString(),
+                status: 'confirmed',
+                notes: notes || null
+            })
+            .select('*')
+            .single();
+
+        if (createVisitError) throw createVisitError;
+
+        return { status: 'success', visit: createdVisit };
+    } catch (error: any) {
+        console.error('[RealEstate] book visit failed:', error);
+        return { status: 'error', visit: { message: error?.message || 'Failed' } };
+    }
 }
 
 // ============ REMINDER SYSTEM ============

@@ -8,8 +8,9 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Building2, Lock, Mail, Phone, Loader2, Stethoscope, Scissors, Home, Car, GraduationCap, HeartPulse, CheckCircle2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 type NicheType = 'dentistry' | 'doctor' | 'beauty_center' | 'immobilier' | 'car_location' | 'centre_formation';
 
@@ -80,7 +81,9 @@ function generateWahaSessionName(clinicName: string): string {
 export default function AuthPage() {
   const { signIn, signUp, user, loading } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
+  const [showPlansModal, setShowPlansModal] = useState(false);
 
   // Form States
   const [email, setEmail] = useState('');
@@ -88,7 +91,7 @@ export default function AuthPage() {
   const [clinicName, setClinicName] = useState('');
   const [phone, setPhone] = useState('');
   const [selectedNiche, setSelectedNiche] = useState<NicheType>('dentistry');
-  const [selectedPlan, setSelectedPlan] = useState<PlanType>('essentiel');
+  // Plans are shown after signup as a modal (not during signup).
 
   // Language toggle
   const [lang, setLang] = useState<'en' | 'fr'>('fr');
@@ -96,7 +99,7 @@ export default function AuthPage() {
   // Password Reset Mode
   const [resetMode, setResetMode] = useState(false);
 
-  if (user && !loading) {
+  if (user && !loading && !showPlansModal) {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -206,7 +209,6 @@ export default function AuthPage() {
       phone: phone,
       niche: selectedNiche,
       waha_session_name: wahaSessionName,
-      plan_type: selectedPlan,
     });
     setIsLoading(false);
 
@@ -214,6 +216,7 @@ export default function AuthPage() {
       toast({ variant: 'destructive', title: t.signUpFailed, description: error.message });
     } else {
       toast({ title: t.welcome, description: t.accountCreated });
+      setShowPlansModal(true);
     }
   };
 
@@ -340,59 +343,6 @@ export default function AuthPage() {
                   </div>
                 </div>
 
-                {/* Plan Selection Grid */}
-                <div className="space-y-4">
-                  <Label className="text-sm font-medium">{t.selectPlan}</Label>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {PLANS.map((plan) => (
-                      <button
-                        key={plan.id}
-                        type="button"
-                        onClick={() => setSelectedPlan(plan.id)}
-                        className={cn(
-                          'relative flex flex-col items-start p-5 rounded-2xl border-2 transition-all duration-300 text-left w-full h-full group',
-                          selectedPlan === plan.id
-                            ? 'border-primary bg-primary/5 shadow-xl shadow-primary/10 scale-[1.02]'
-                            : 'border-white/10 bg-secondary/20 hover:border-primary/30 hover:bg-secondary/40'
-                        )}
-                      >
-						{plan.recommended && (
-							<span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest shadow-lg shadow-primary/20">
-								Recommandé
-							</span>
-						)}
-                        <div className="flex flex-col w-full gap-2 mb-4">
-                            <span className={cn("text-xl font-black", selectedPlan === plan.id ? "text-primary" : "text-foreground")}>
-                                {plan.label}
-                            </span>
-                            <span className="text-2xl font-black mt-1">
-                                {plan.price}<span className="text-sm font-normal opacity-70">/mo</span>
-                            </span>
-                            <p className="text-xs text-muted-foreground leading-relaxed mt-2 min-h-[48px]">
-                                {lang === 'fr' ? plan.pitchFr : plan.pitchEn}
-                            </p>
-						</div>
-						
-						<div className="space-y-2 w-full mt-auto mb-6 flex-1">
-							{(lang === 'fr' ? plan.valuesFr : plan.valuesEn).map((val, idx) => (
-								<div key={idx} className="flex items-start gap-2.5 text-sm">
-									<CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-									<span className={cn("text-xs font-medium leading-relaxed", selectedPlan === plan.id ? "text-foreground" : "text-muted-foreground")}>{val}</span>
-								</div>
-							))}
-						</div>
-
-						<div className={cn(
-							"w-full py-3 rounded-xl text-xs font-bold text-center transition-colors uppercase tracking-wider",
-							selectedPlan === plan.id ? "bg-primary text-primary-foreground" : "bg-white/5 text-muted-foreground group-hover:bg-primary/20 group-hover:text-primary"
-						)}>
-							{lang === 'fr' ? plan.ctaFr : plan.ctaEn}
-						</div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
                 <div className="space-y-2">
                   <Label>{t.businessName}</Label>
                   <div className="relative">
@@ -452,6 +402,78 @@ export default function AuthPage() {
           </Tabs>
         </CardContent>
       </Card>
+
+      {/* Post-signup Plans (popup/modal) */}
+      <Dialog open={showPlansModal} onOpenChange={setShowPlansModal}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold">
+              {lang === 'fr' ? 'Choisissez votre formule' : 'Choose your plan'}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="grid gap-4 md:grid-cols-3 pt-2">
+            {PLANS.map((plan) => (
+              <div
+                key={plan.id}
+                className={cn(
+                  'relative rounded-2xl border bg-secondary/20 p-4 flex flex-col',
+                  plan.recommended ? 'border-primary/30' : 'border-white/10'
+                )}
+              >
+                {plan.recommended && (
+                  <span className="absolute -top-3 left-4 bg-primary text-primary-foreground text-[10px] font-black px-2 py-1 rounded-full uppercase tracking-widest shadow-lg shadow-primary/20">
+                    Recommandé
+                  </span>
+                )}
+                <div className="mt-2">
+                  <div className="text-lg font-black">{plan.label}</div>
+                  <div className="text-2xl font-black mt-1">
+                    {plan.price}
+                    <span className="text-sm font-normal opacity-70">/mo</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed mt-2">
+                    {lang === 'fr' ? plan.pitchFr : plan.pitchEn}
+                  </p>
+                </div>
+                <div className="space-y-2 mt-auto pt-3">
+                  {(lang === 'fr' ? plan.valuesFr : plan.valuesEn).map((val, idx) => (
+                    <div key={idx} className="flex items-start gap-2.5 text-sm">
+                      <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                      <span className="text-xs font-medium leading-relaxed text-muted-foreground">
+                        {val}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between pt-4">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setShowPlansModal(false);
+                if (user) navigate('/dashboard');
+              }}
+            >
+              {lang === 'fr' ? 'Continuer' : 'Continue'}
+            </Button>
+            <Button
+              onClick={() => {
+                const msg = lang === 'fr'
+                  ? 'Bonjour, je viens de créer mon compte. Je souhaite activer/choisir ma formule sur Mojib.AI.'
+                  : 'Hi, I just created my account. I want to activate/select a plan on Mojib.AI.';
+                window.open(`https://wa.me/447749343372?text=${encodeURIComponent(msg)}`, '_blank');
+              }}
+              className="sm:w-auto"
+            >
+              {lang === 'fr' ? 'Parler à un conseiller' : 'Talk to a specialist'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

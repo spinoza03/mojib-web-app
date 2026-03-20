@@ -30,6 +30,35 @@ export async function sendText(chatId: string, text: string, sessionName?: strin
     }
 }
 
+export async function sendMedia(
+    chatId: string,
+    mediaUrl: string,
+    mediaType: 'image' | 'video' = 'image',
+    sessionName?: string,
+    caption?: string
+) {
+    try {
+        await client.post('/api/sendMedia', {
+            session: sessionName || WAHA_SESSION,
+            chatId: chatId,
+            mediaUrl: mediaUrl,
+            mediaType,
+            caption: caption || ''
+        });
+    } catch (error) {
+        console.error(`[WAHA] Error sending media (${mediaType}) to ${chatId}:`, error);
+    }
+}
+
+export async function sendImage(
+    chatId: string,
+    imageUrl: string,
+    sessionName?: string,
+    caption?: string
+) {
+    await sendMedia(chatId, imageUrl, 'image', sessionName, caption);
+}
+
 export async function startTyping(chatId: string, sessionName?: string) {
     try {
         await client.post('/api/startTyping', {

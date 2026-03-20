@@ -12,6 +12,10 @@ import SettingsPage from "./pages/SettingsPage";
 import AdminPage from "./pages/AdminPage";
 import CRMPage from "./pages/CRMPage";
 import FinancePage from "./pages/FinancePage";
+import RealEstateCataloguePage from "./pages/RealEstateCataloguePage";
+import RealEstateCRMPage from "./pages/RealEstateCRMPage";
+import RealEstateMatchingPage from "./pages/RealEstateMatchingPage";
+import RealEstateFinancePage from "./pages/RealEstateFinancePage";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 
@@ -135,6 +139,38 @@ const App = () => (
               element={
                 <ProtectedFeatureRoute featureName="advanced-settings">
                   <SettingsPage />
+                </ProtectedFeatureRoute>
+              }
+            />
+            <Route
+              path="/immobilier"
+              element={
+                <ProtectedFeatureRoute featureName="immobilier-catalogue">
+                  <RealEstateCataloguePage />
+                </ProtectedFeatureRoute>
+              }
+            />
+            <Route
+              path="/immobilier/crm"
+              element={
+                <ProtectedFeatureRoute featureName="immobilier-catalogue">
+                  <RealEstateCRMPage />
+                </ProtectedFeatureRoute>
+              }
+            />
+            <Route
+              path="/immobilier/matching"
+              element={
+                <ProtectedFeatureRoute featureName="immobilier-catalogue">
+                  <RealEstateMatchingPage />
+                </ProtectedFeatureRoute>
+              }
+            />
+            <Route
+              path="/immobilier/finance"
+              element={
+                <ProtectedFeatureRoute featureName="immobilier-catalogue">
+                  <RealEstateFinancePage />
                 </ProtectedFeatureRoute>
               }
             />
