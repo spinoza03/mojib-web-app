@@ -4,7 +4,7 @@ import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/hooks/useAuth';
-import { Loader2, Menu, MessageCircle } from 'lucide-react';
+import { Loader2, Menu, MessageCircle, Monitor, X } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 
@@ -16,6 +16,10 @@ export function AppLayout({ children }: AppLayoutProps) {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [showMobileBanner, setShowMobileBanner] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth < 768 && !sessionStorage.getItem('hideMobileBanner');
+  });
 
   useEffect(() => {
     if (!loading && !user) {
@@ -33,8 +37,25 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   if (!user) return null;
 
+  const dismissBanner = () => {
+    setShowMobileBanner(false);
+    sessionStorage.setItem('hideMobileBanner', '1');
+  };
+
   return (
-    <div className="min-h-screen bg-background flex">
+    <div className="min-h-screen bg-background flex flex-col">
+      {/* Mobile banner */}
+      {showMobileBanner && (
+        <div className="md:hidden bg-primary/10 border-b border-primary/20 px-4 py-2.5 flex items-center gap-3 text-sm">
+          <Monitor className="h-4 w-4 text-primary shrink-0" />
+          <span className="text-muted-foreground flex-1">Pour une meilleure expérience, utilisez un ordinateur.</span>
+          <button onClick={dismissBanner} className="text-muted-foreground hover:text-foreground shrink-0">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      <div className="flex-1 flex">
       {/* 1. Desktop Sidebar (Hidden on Mobile) */}
       <div className="hidden md:block w-64 fixed h-full z-40">
         <Sidebar />
@@ -84,6 +105,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           Support Client
         </span>
       </a>
+      </div>
     </div>
   );
 }
