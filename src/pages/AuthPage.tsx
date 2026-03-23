@@ -134,27 +134,20 @@ export default function AuthPage() {
 
   // Language toggle
   const [lang, setLang] = useState<'en' | 'fr'>('fr');
-  
+
   // Password Reset Mode
   const [resetMode, setResetMode] = useState(false);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  if (user && !showPlansModal) {
-    return <Navigate to="/dashboard" replace />;
-  }
 
   useEffect(() => {
     if (!showPlansModal) return;
     const defaultPlan = selectedNiche === 'immobilier' ? 'pro' : 'essentiel';
     setSelectedPlan(defaultPlan);
   }, [showPlansModal, selectedNiche]);
+
+  // Redirect to dashboard if already logged in (no loading guard — avoids white screen)
+  if (!loading && user && !showPlansModal) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   const t = {
     en: {
