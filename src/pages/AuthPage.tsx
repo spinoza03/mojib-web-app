@@ -214,9 +214,11 @@ export default function AuthPage() {
     setIsLoading(true);
     const { error } = await signIn(email, password);
     setIsLoading(false);
-    
+
     if (error) {
       toast({ variant: 'destructive', title: t.loginFailed, description: error.message });
+    } else {
+      navigate('/dashboard', { replace: true });
     }
   };
 
