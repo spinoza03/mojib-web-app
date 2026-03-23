@@ -83,24 +83,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // 1. Bootstrap: get existing session + listen for changes (sync only, no async)
   useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      if (!session?.user) setLoading(false);
+    });
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (_event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
-
-        if (session?.user) {
-          await fetchProfile(session.user.id);
-        } else {
+        if (!session?.user) {
           setProfile(null);
+          setLoading(false);
         }
-
-        setLoading(false);
       }
     );
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // 2. Whenever user changes, fetch their profile, THEN mark loading done
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+
+    setLoading(true);
+    fetchProfile(user.id).finally(() => {
+      if (!cancelled) setLoading(false);
+    });
+
+    return () => { cancelled = true; };
+  }, [user?.id]);
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
