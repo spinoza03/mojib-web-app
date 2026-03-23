@@ -48,7 +48,13 @@ interface AppointmentEvent {
 
 export default function AppointmentsPage() {
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const isImmobilier = profile?.niche === 'immobilier';
+
+  // Niche-aware labels (DB columns stay the same)
+  const labels = isImmobilier
+    ? { personName: 'Nom du client', phonePlaceholder: '+212...', notesLabel: 'Notes', notesPlaceholder: 'Motif de la visite...', pageTitle: 'Rendez-vous', pageDesc: 'Gérez vos visites immobilières.', bookBtn: 'Nouveau RDV', newTitle: 'Nouveau Rendez-vous', editTitle: 'Modifier le Rendez-vous', namePlaceholder: 'ex. Youssef El Amrani' }
+    : { personName: 'Patient Name', phonePlaceholder: '+212...', notesLabel: 'Notes', notesPlaceholder: 'Reason for visit...', pageTitle: 'Appointments', pageDesc: "Manage your clinic's schedule.", bookBtn: 'Manual Booking', newTitle: 'New Appointment', editTitle: 'Modify Appointment', namePlaceholder: 'e.g. Sara Ahmed' };
   const queryClient = useQueryClient();
   
   // State for View Dialog
@@ -285,8 +291,8 @@ export default function AppointmentsPage() {
       <div className="space-y-6 h-auto md:h-[calc(100vh-100px)] flex flex-col">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">Appointments</h1>
-            <p className="text-muted-foreground">Manage your clinic's schedule.</p>
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">{labels.pageTitle}</h1>
+            <p className="text-muted-foreground">{labels.pageDesc}</p>
             <div className="mt-2 flex flex-col sm:flex-row sm:items-center gap-2">
                <span className="text-sm font-medium text-muted-foreground">Timezone:</span>
                <Select value={selectedTimzeone} onValueChange={setSelectedTimezone}>
@@ -309,7 +315,7 @@ export default function AppointmentsPage() {
             onClick={() => setIsCreateDialogOpen(true)}
           >
             <Plus className="h-4 w-4" />
-            Manual Booking
+            {labels.bookBtn}
           </Button>
         </div>
 
@@ -402,11 +408,11 @@ export default function AppointmentsPage() {
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
           <DialogContent className="glass-card sm:max-w-[425px]">
             <DialogHeader>
-              <DialogTitle>Modify Appointment</DialogTitle>
+              <DialogTitle>{labels.editTitle}</DialogTitle>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
-                <Label htmlFor="edit-name">Patient Name</Label>
+                <Label htmlFor="edit-name">{labels.personName}</Label>
                 <Input 
                   id="edit-name" 
                   value={editAppointment.patientName} 
@@ -461,16 +467,16 @@ export default function AppointmentsPage() {
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogContent className="glass-card sm:max-w-[425px]">
             <DialogHeader>
-              <DialogTitle>New Appointment</DialogTitle>
+              <DialogTitle>{labels.newTitle}</DialogTitle>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
-                <Label htmlFor="name">Patient Name</Label>
-                <Input 
-                  id="name" 
-                  value={newAppointment.patientName} 
+                <Label htmlFor="name">{labels.personName}</Label>
+                <Input
+                  id="name"
+                  value={newAppointment.patientName}
                   onChange={(e) => setNewAppointment({...newAppointment, patientName: e.target.value})}
-                  placeholder="e.g. Sara Ahmed" 
+                  placeholder={labels.namePlaceholder} 
                 />
               </div>
               <div className="grid gap-2">
@@ -503,12 +509,12 @@ export default function AppointmentsPage() {
                 </div>
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="notes">Notes</Label>
-                <Input 
-                  id="notes" 
-                  value={newAppointment.notes} 
+                <Label htmlFor="notes">{labels.notesLabel}</Label>
+                <Input
+                  id="notes"
+                  value={newAppointment.notes}
                   onChange={(e) => setNewAppointment({...newAppointment, notes: e.target.value})}
-                  placeholder="Reason for visit..." 
+                  placeholder={labels.notesPlaceholder} 
                 />
               </div>
             </div>

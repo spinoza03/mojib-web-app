@@ -18,7 +18,7 @@ const NICHES: { id: NicheType; label: string; labelFr: string; icon: any; active
   { id: 'dentistry', label: 'Dentistry', labelFr: 'Dentisterie', icon: Stethoscope, active: true },
   { id: 'doctor', label: 'Doctor / Clinic', labelFr: 'Médecin / Clinique', icon: HeartPulse, active: true },
   { id: 'beauty_center', label: 'Centres d\'esthétique', labelFr: 'Centres d\'esthétique', icon: Scissors, active: true },
-  { id: 'immobilier', label: 'Real Estate', labelFr: 'Immobilier', icon: Home, active: false },
+  { id: 'immobilier', label: 'Real Estate', labelFr: 'Immobilier', icon: Home, active: true },
   { id: 'car_location', label: 'Car Rental', labelFr: 'Location de voitures', icon: Car, active: false },
   { id: 'centre_formation', label: 'Training Center', labelFr: 'Centre de formation', icon: GraduationCap, active: false },
 ];

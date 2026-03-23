@@ -236,6 +236,37 @@ export default function SettingsPage() {
 
 	const isImmobilier = profile?.niche === 'immobilier';
 
+	// Niche-aware labels (DB columns stay the same)
+	const nicheLabels = isImmobilier
+		? {
+			entityName: 'Agence',
+			namePlaceholder: 'ex. Agence Immobilière Al Baraka',
+			personSingular: 'Client',
+			personPlural: 'Clients',
+			capacityLabel: 'Capacité par Créneau (Clients en simultané)',
+			capacityDesc: "Le nombre de clients que vous pouvez recevoir à la même heure pour des visites.",
+			slotDesc: 'La durée standard réservée pour chaque visite (par ex: 30 minutes).',
+			aiCardDesc: "Configurez le comportement de votre agent commercial IA. Pas besoin d'écrire de prompts compliqués !",
+			hoursDesc: "Les horaires d'ouverture de votre agence.",
+			additionalInfoDesc: "Ajoutez des détails : zones couvertes, types de biens, commissions, ou autres informations clés.",
+			additionalInfoPlaceholder: "Exemple:\n- Zone: Marrakech, Guéliz, Hivernage\n- Types: Appartements, Villas, Locaux commerciaux\n- Commission: 2.5% du prix de vente",
+			reminderVar: '{patient_name} = nom du client',
+		}
+		: {
+			entityName: 'Clinique',
+			namePlaceholder: 'ex. Centre Dentaire Sourire',
+			personSingular: 'Patient',
+			personPlural: 'Patients',
+			capacityLabel: 'Capacité par Créneau (Patients en simultané)',
+			capacityDesc: "{nicheLabels.capacityDesc}",
+			slotDesc: '{nicheLabels.slotDesc}',
+			aiCardDesc: "Configurez le comportement de votre réceptionniste IA. Pas besoin d'écrire de prompts compliqués !",
+			hoursDesc: "Les heures d'ouverture de votre clinique.",
+			additionalInfoDesc: "Ajoutez des détails : tarifs, spécialités, assurance (CNSS/CNOPS), ou autres informations clés.",
+			additionalInfoPlaceholder: "Exemple:\n- Consultation: 200 DH\n- Détartrage: 300 DH\n- Nous acceptons la CNSS\n- Spécialités: Orthodontie, Implantologie",
+			reminderVar: '{patient_name} = nom du patient',
+		};
+
 	const PLAN_DISPLAY = isImmobilier
 		? [
 			{
@@ -362,7 +393,7 @@ export default function SettingsPage() {
 								<CardHeader>
 									<CardTitle className="flex items-center gap-2">
 										<Building2 className="h-5 w-5 text-primary" />
-										Identité de la Clinique / Entreprise
+										Identité de {isImmobilier ? "l'Agence" : 'la Clinique'} / Entreprise
 									</CardTitle>
 								</CardHeader>
 								<CardContent className="space-y-6">
@@ -386,11 +417,11 @@ export default function SettingsPage() {
 									</div>
 
 									<div className="space-y-2">
-										<Label>Nom de la Clinique / Entreprise</Label>
+										<Label>Nom de {isImmobilier ? "l'Agence" : 'la Clinique'} / Entreprise</Label>
 										<Input
 											value={clinicName}
 											onChange={(e) => setClinicName(e.target.value)}
-											placeholder="ex. Centre Dentaire Sourire"
+											placeholder={nicheLabels.namePlaceholder}
 											disabled={isSubscriptionExpired}
 										/>
 									</div>
@@ -405,7 +436,7 @@ export default function SettingsPage() {
 										Configuration de l'Agent IA
 									</CardTitle>
 									<CardDescription>
-										Configurez le comportement de votre réceptionniste IA. Pas besoin d'écrire de prompts compliqués !
+										{nicheLabels.aiCardDesc}
 									</CardDescription>
 								</CardHeader>
 								<CardContent className="space-y-4">
@@ -433,7 +464,7 @@ export default function SettingsPage() {
 											placeholder="ex. Lun-Sam 09:00-18:00"
 											disabled={isSubscriptionExpired}
 										/>
-										<p className="text-xs text-muted-foreground">Les heures d'ouverture de votre clinique.</p>
+										<p className="text-xs text-muted-foreground">{nicheLabels.hoursDesc}</p>
 									</div>
 
 									{/* Tone */}
@@ -488,7 +519,7 @@ export default function SettingsPage() {
 									Informations Supplémentaires (IA)
 								</CardTitle>
 								<CardDescription>
-									Ajoutez des détails : tarifs, spécialités, assurance (CNSS/CNOPS), ou autres informations clés.
+									{nicheLabels.additionalInfoDesc}
 								</CardDescription>
 							</CardHeader>
 							<CardContent className="space-y-4">
@@ -496,7 +527,7 @@ export default function SettingsPage() {
 									value={additionalInfo}
 									onChange={(e) => setAdditionalInfo(e.target.value)}
 									className="min-h-[150px] font-mono text-sm bg-secondary/50 leading-relaxed"
-									placeholder={`Exemple:\n- Consultation: 200 DH\n- Détartrage: 300 DH\n- Nous acceptons la CNSS\n- Spécialités: Orthodontie, Implantologie`}
+									placeholder={nicheLabels.additionalInfoPlaceholder}
 									disabled={isSubscriptionExpired}
 								/>
 								<Button onClick={handleSave} disabled={loading || isSubscriptionExpired} className="w-full">
@@ -520,8 +551,8 @@ export default function SettingsPage() {
 					<CardContent className="space-y-6">
 						<div className="space-y-3">
 							<div className="flex items-center justify-between">
-								<Label className="flex items-center gap-2"><Users className="h-4 w-4" /> Capacité par Créneau (Patients en simultané)</Label>
-								<span className="text-sm font-bold text-primary bg-primary/10 px-3 py-1 rounded-full">{slotCapacity} {slotCapacity > 1 ? 'Patients' : 'Patient'}</span>
+								<Label className="flex items-center gap-2"><Users className="h-4 w-4" /> {nicheLabels.capacityLabel}</Label>
+								<span className="text-sm font-bold text-primary bg-primary/10 px-3 py-1 rounded-full">{slotCapacity} {slotCapacity > 1 ? nicheLabels.personPlural : nicheLabels.personSingular}</span>
 							</div>
 							<Slider
 								value={[slotCapacity]}
@@ -531,7 +562,7 @@ export default function SettingsPage() {
 								step={1}
 								disabled={isSubscriptionExpired}
 							/>
-							<p className="text-xs text-muted-foreground">Le nombre de patients que vous (ou votre équipe) pouvez recevoir et traiter à la même heure exacte.</p>
+							<p className="text-xs text-muted-foreground">{nicheLabels.capacityDesc}</p>
 						</div>
 
 						<div className="space-y-3 pt-4 border-t border-border/50">
@@ -547,7 +578,7 @@ export default function SettingsPage() {
 								step={5}
 								disabled={isSubscriptionExpired}
 							/>
-							<p className="text-xs text-muted-foreground">La durée standard réservée pour chaque patient (par ex: 30 minutes).</p>
+							<p className="text-xs text-muted-foreground">{nicheLabels.slotDesc}</p>
 						</div>
 					</CardContent>
 				</Card>
@@ -673,7 +704,7 @@ export default function SettingsPage() {
 								disabled={isSubscriptionExpired}
 							/>
 							<p className="text-xs text-muted-foreground mt-2">
-								Variables disponibles : <code>{'{patient_name}'}</code>, <code>{'{clinic_name}'}</code>, <code>{'{time}'}</code>
+								Variables disponibles : <code>{'{patient_name}'}</code> ({nicheLabels.reminderVar}), <code>{'{clinic_name}'}</code>, <code>{'{time}'}</code>
 							</p>
 						</div>
 

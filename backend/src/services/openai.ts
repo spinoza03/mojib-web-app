@@ -182,7 +182,7 @@ export async function generateResponse(
         messages.push({
             role: 'user',
             content: [
-                { type: "text", text: newMessage || "Analyze this image in the context of a medical/beauty clinic inquiry." },
+                { type: "text", text: newMessage || "Analyze this image and respond based on the conversation context." },
                 {
                     type: "image_url",
                     image_url: {

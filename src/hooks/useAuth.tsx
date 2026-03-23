@@ -8,7 +8,7 @@ type SubscriptionStatus = 'trial' | 'active' | 'expired';
 export type FeatureName = 'dashboard' | 'chat' | 'calendar-sync' | 'advanced-settings' | 'crm' | 'finance' | 'immobilier-catalogue';
 export type NicheType = 'dentistry' | 'doctor' | 'beauty_center' | 'immobilier' | 'car_location' | 'centre_formation';
 
-const ACTIVE_NICHES: NicheType[] = ['dentistry', 'doctor', 'beauty_center'];
+const ACTIVE_NICHES: NicheType[] = ['dentistry', 'doctor', 'beauty_center', 'immobilier'];
 
 interface Profile {
   id: string;
@@ -147,7 +147,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Immobilier users should only see immobilier experience.
     if (isImmobilier) {
-      const immobilierFeatures: FeatureName[] = ['dashboard', 'advanced-settings', 'immobilier-catalogue', 'chat'];
+      const immobilierFeatures: FeatureName[] = ['dashboard', 'advanced-settings', 'immobilier-catalogue', 'chat', 'calendar-sync'];
       return immobilierFeatures.includes(featureName);
     }
 

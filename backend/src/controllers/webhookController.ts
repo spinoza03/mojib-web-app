@@ -73,14 +73,15 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
         if (config) {
             const isTrial = config.subscription_status === 'trial';
             const isActive = config.subscription_status === 'active' || config.subscription_status === 'pro';
-            // Note: to accurately check trial expiration, we assume the frontend/backend sync handles it, 
+            // Note: to accurately check trial expiration, we assume the frontend/backend sync handles it,
             // but if it's explicitly 'expired', we block it entirely.
             if (!isTrial && !isActive) {
                 console.log(`[Subscription Expired] Ignoring message for session: ${config.waha_session_name}`);
                 res.status(200).send('Ignored: Subscription Expired');
                 return;
             }
-            isDoctorBot = true;
+            // isDoctorBot is TRUE only for medical niches — NOT for immobilier
+            isDoctorBot = config.niche !== 'immobilier';
             sessionName = config.waha_session_name;
         } else {
             console.log(`[Unknown Session] No config found for session: ${payload.session}`);
@@ -268,6 +269,15 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
                     const args = JSON.parse(toolCall.function.arguments);
                     console.log(`[TOOL] Search Properties (${config.user_id}):`, args);
                     const result = await searchRealEstateProperties(config.user_id, args.criteria || {});
+                    // Auto-fetch photos for the first 2 matching properties so the AI can send them
+                    if (result?.properties?.length) {
+                        for (const prop of result.properties.slice(0, 2)) {
+                            const photoResult = await getRealEstatePropertyPhotos(config.user_id, prop.id);
+                            if (photoResult?.photos?.length) {
+                                propertyPhotosToSend.push(...photoResult.photos.slice(0, 3));
+                            }
+                        }
+                    }
                     tempMessages.push({ role: "tool", tool_call_id: toolCall.id, content: JSON.stringify(result) });
                 }
                 else if (toolCall.function.name === 'get_property_photos') {
@@ -299,7 +309,7 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
                 const followUpResponse = await openaiClient.chat.completions.create({
                     model: "gpt-4o-mini",
                     messages: tempMessages,
-                    tools: isDoctorBot ? DOCTOR_TOOLS : (isRealEstateBot ? REAL_ESTATE_TOOLS : undefined)
+                    tools: isRealEstateBot ? REAL_ESTATE_TOOLS : DOCTOR_TOOLS
                 });
                 finalResponseContent = followUpResponse.choices[0].message.content;
             } catch (err) {

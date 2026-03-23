@@ -896,7 +896,7 @@ export default function AdminPage() {
 									<SelectItem value="dentistry">Dentistry</SelectItem>
 									<SelectItem value="doctor">Medical Doctor</SelectItem>
 									<SelectItem value="beauty_center">Beauty Center</SelectItem>
-									<SelectItem value="immobilier">Real Estate (Coming Soon)</SelectItem>
+									<SelectItem value="immobilier">Real Estate</SelectItem>
 									<SelectItem value="car_location">Car Rental (Coming Soon)</SelectItem>
 									<SelectItem value="centre_formation">Training Center (Coming Soon)</SelectItem>
 								</SelectContent>

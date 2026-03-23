@@ -10,7 +10,7 @@ const NICHE_CONFIG: Record<NicheType, { label: string; icon: any; active: boolea
   dentistry: { label: '🦷 Dentisterie', icon: Stethoscope, active: true },
   doctor: { label: '🩺 Médecin / Clinique', icon: HeartPulse, active: true },
   beauty_center: { label: '💆 Centre de Beauté', icon: Scissors, active: true },
-  immobilier: { label: '🏠 Immobilier', icon: HomeIcon, active: false },
+  immobilier: { label: '🏠 Immobilier', icon: HomeIcon, active: true },
   car_location: { label: '🚗 Location Voitures', icon: Car, active: false },
   centre_formation: { label: '🎓 Centre Formation', icon: GraduationCap, active: false },
 };
@@ -113,7 +113,7 @@ export function Sidebar() {
         <nav className="flex-1 px-3 py-6 space-y-1">
           {navItems.map((item) => {
             const isImmobilierNav = item.path.startsWith('/immobilier');
-            if (isImmobilier && !isImmobilierNav && item.path !== '/dashboard' && item.path !== '/settings' && item.path !== '/connect') {
+            if (isImmobilier && !isImmobilierNav && item.path !== '/dashboard' && item.path !== '/settings' && item.path !== '/connect' && item.path !== '/appointments') {
               return null;
             }
             if (!isImmobilier && isImmobilierNav) {

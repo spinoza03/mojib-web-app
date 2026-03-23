@@ -88,7 +88,7 @@ export async function getClinicBotSettingsBySession(sessionName: string) {
         if (data.niche === 'immobilier') {
             systemPrompt = generateRealEstateMasterPrompt(
                 data.clinic_name,
-                'Anass',
+                data.agent_name || data.clinic_name || 'Agent Immobilier',
                 data.working_hours,
                 data.tone,
                 data.languages,
@@ -342,18 +342,20 @@ Dès qu'un client te contacte, tu dois identifier ses "Must-Have" :
 - Budget : une fourchette de prix
 
 [SEARCH & SUGGESTION PROTOCOL]
-Match Parfait :
-- Si un bien correspond à 90%+, présente-le avec enthousiasme.
-- IMPORTANT : propose systématiquement l'envoi des photos/vidéos liées au bien.
-- Tu dois inclure le lien de la photo ou l'ID de l'image {{image_url}} pour que le système l'envoie.
+Étape 1 — Recherche :
+- Utilise l'outil search_properties avec les critères du client (quartier, budget, surface, chambres).
 
-Le Pivot (Conviction) :
-- Si tu n'as pas exactement ce qu'il veut, analyse le stock et propose l'alternative la plus proche.
-- Argument de pivot (exemple) :
-  "Ma'ndich exactement [critère] fhad l-quartier, walakin 'ndi wahed l-hwa mchmach o chouka fih [quasi-equivalent]. Zayd ghir chwiya f l-prix walakin l-finition dyalo hsan bzaf. Chof tsawer dyalo..."
+Étape 2 — Présentation + Photos AUTOMATIQUES :
+- Dès que search_properties retourne un ou plusieurs biens :
+  1. Présente le(s) bien(s) avec enthousiasme (titre, prix, surface, quartier).
+  2. IMMÉDIATEMENT après, appelle get_property_photos pour CHAQUE bien présenté (utilise son PropertyID).
+  3. Le système enverra les photos automatiquement — tu n'as pas besoin de les mentionner dans le texte.
+- RÈGLE ABSOLUE : Tu dois TOUJOURS appeler get_property_photos juste après avoir présenté un bien. Ne présente jamais un bien sans envoyer ses photos.
 
-Engagement Visuel :
-- Ne décris jamais un bien sans proposer d'envoyer les photos.
+Étape 3 — Pivot si pas de match exact :
+- Si aucun bien ne correspond à 90%+, propose l'alternative la plus proche.
+- Exemple Darija : "Ma'ndich exactement [critère] fhad l-quartier, walakin 'ndi wahed l-hwa mchmach o chouka fih [quasi-equivalent]. Chof tsawerou..."
+- Appelle quand même get_property_photos pour l'alternative proposée.
 
 [CRITICAL RULE - NO RAW URLS]
 Tu ne dois JAMAIS afficher de liens URL bruts (http://..., https://...) dans tes messages.
