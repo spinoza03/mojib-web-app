@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router-dom';
 
 export default function DashboardPage() {
   const { user, profile, isNicheActive } = useAuth();
+  const isImmobilier = profile?.niche === 'immobilier';
 
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -31,25 +32,46 @@ export default function DashboardPage() {
       try {
         const now = new Date().toISOString();
 
-        // 1. Get Total Appointments (Fixed: Filter by doctor_id)
-        const { count: totalCount } = await supabase
+        // Try doctor_id first (new schema), fall back to user_id (old schema)
+        let { count: totalCount, error: totalErr } = await supabase
           .from('appointments')
           .select('*', { count: 'exact', head: true })
-          .eq('doctor_id', user.id); // <--- CRITICAL SECURITY FIX
+          .eq('doctor_id', user.id);
 
-        // 2. Get Upcoming Count (Fixed: Filter by doctor_id & Time)
-        const { count: upcomingCount } = await supabase
+        if (totalErr) {
+          ({ count: totalCount } = await supabase
+            .from('appointments')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', user.id));
+        }
+
+        // Upcoming count — try start_time, fall back to date_time
+        let { count: upcomingCount, error: upcomingErr } = await supabase
           .from('appointments')
           .select('*', { count: 'exact', head: true })
           .eq('doctor_id', user.id)
-          .gte('start_time', now); // Only future dates
+          .gte('start_time', now);
 
-        // 3. Get Unique Patients Count (Approximation by counting rows for now)
-        // In a real app, you might have a separate 'patients' table
-        const { count: patientsCount } = await supabase
+        if (upcomingErr) {
+          ({ count: upcomingCount } = await supabase
+            .from('appointments')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', user.id)
+            .gte('date_time', now));
+        }
+
+        // Unique patients/contacts count
+        let { count: patientsCount, error: patientsErr } = await supabase
           .from('appointments')
           .select('patient_phone', { count: 'exact', head: true })
           .eq('doctor_id', user.id);
+
+        if (patientsErr) {
+          ({ count: patientsCount } = await supabase
+            .from('appointments')
+            .select('phone', { count: 'exact', head: true })
+            .eq('user_id', user.id));
+        }
 
         setStats({
           totalAppointments: totalCount || 0,
@@ -57,14 +79,24 @@ export default function DashboardPage() {
           totalPatients: patientsCount || 0,
         });
 
-        // 4. Fetch actual list of next 5 appointments
-        const { data: upcomingData } = await supabase
+        // Fetch next 5 appointments — try new columns, fall back to old
+        let { data: upcomingData, error: listErr } = await supabase
           .from('appointments')
           .select('*')
           .eq('doctor_id', user.id)
           .gte('start_time', now)
-          .order('start_time', { ascending: true }) // Closest first
+          .order('start_time', { ascending: true })
           .limit(5);
+
+        if (listErr) {
+          ({ data: upcomingData } = await supabase
+            .from('appointments')
+            .select('*')
+            .eq('user_id', user.id)
+            .gte('date_time', now)
+            .order('date_time', { ascending: true })
+            .limit(5));
+        }
 
         if (upcomingData) {
           setUpcomingList(upcomingData);
@@ -91,10 +123,10 @@ export default function DashboardPage() {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">
-              {greeting}, {profile?.clinic_name || 'Docteur'}
+              {greeting}, {profile?.clinic_name || (isImmobilier ? 'Agent' : 'Docteur')}
             </h1>
             <p className="text-muted-foreground mt-1">
-              Voici ce qui se passe dans votre clinique aujourd'hui.
+              {isImmobilier ? "Voici l'activité de votre agence aujourd'hui." : "Voici ce qui se passe dans votre clinique aujourd'hui."}
             </p>
           </div>
           <div className="flex gap-3">
@@ -169,7 +201,7 @@ export default function DashboardPage() {
 
           <Card className="glass-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Patients</CardTitle>
+              <CardTitle className="text-sm font-medium">{isImmobilier ? 'Total Clients' : 'Total Patients'}</CardTitle>
               <Users className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
@@ -216,9 +248,13 @@ export default function DashboardPage() {
                           {apt.patient_name ? apt.patient_name.charAt(0).toUpperCase() : 'U'}
                         </div>
                         <div>
-                          <p className="font-medium">{apt.patient_name || 'Patient Inconnu'}</p>
+                          <p className="font-medium">{apt.patient_name || (isImmobilier ? 'Client Inconnu' : 'Patient Inconnu')}</p>
                           <p className="text-sm text-muted-foreground">
-                            {format(new Date(apt.start_time), 'dd/MM/yyyy')} à {format(new Date(apt.start_time), 'HH:mm')}
+                            {apt.start_time
+                              ? `${format(new Date(apt.start_time), 'dd/MM/yyyy')} à ${format(new Date(apt.start_time), 'HH:mm')}`
+                              : apt.date_time
+                                ? `${format(new Date(apt.date_time), 'dd/MM/yyyy')} à ${format(new Date(apt.date_time), 'HH:mm')}`
+                                : 'Date non définie'}
                           </p>
                         </div>
                       </div>
@@ -239,7 +275,7 @@ export default function DashboardPage() {
              <CardHeader>
                <CardTitle>Connecter WhatsApp</CardTitle>
                <CardDescription>
-                 Votre réceptionniste IA est-elle active ?
+                 {isImmobilier ? 'Votre agent commercial IA est-il actif ?' : 'Votre réceptionniste IA est-elle active ?'}
                </CardDescription>
              </CardHeader>
              <CardContent className="space-y-4">

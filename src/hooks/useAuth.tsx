@@ -54,19 +54,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = async (userId: string) => {
-    const { data, error } = await supabase
+    // Try by id first (profiles.id = auth.users.id for newer accounts)
+    let { data, error } = await supabase
       .from('profiles')
       .select('*')
-      .eq('id', userId) 
+      .eq('id', userId)
       .maybeSingle();
-    
+
+    // Fallback: try by user_id for older accounts where id ≠ auth uid
+    if (!data && !error) {
+      const fallback = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle();
+      data = fallback.data;
+      error = fallback.error;
+    }
+
     if (error) {
       console.error('Error fetching profile:', error);
     }
 
     if (data) {
-      console.log('Profile loaded:', data);
       setProfile(data as Profile);
+    } else {
+      console.warn('No profile found for user:', userId);
     }
   };
 
