@@ -54,69 +54,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = async (userId: string) => {
-    // Try by id first (profiles.id = auth.users.id for newer accounts)
-    let { data, error } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', userId)
       .maybeSingle();
-
-    // Fallback: try by user_id for older accounts where id ≠ auth uid
-    if (!data && !error) {
-      const fallback = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', userId)
-        .maybeSingle();
-      data = fallback.data;
-      error = fallback.error;
-    }
 
     if (error) {
       console.error('Error fetching profile:', error);
     }
 
     if (data) {
+      console.log('Profile loaded:', data);
       setProfile(data as Profile);
-    } else {
-      console.warn('No profile found for user:', userId);
     }
   };
 
-  // 1. Bootstrap: get existing session + listen for changes (sync only, no async)
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (!session?.user) setLoading(false);
-    });
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+      (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
-        if (!session?.user) {
+
+        if (session?.user) {
+          fetchProfile(session.user.id);
+        } else {
           setProfile(null);
-          setLoading(false);
         }
+
+        setLoading(false);
       }
     );
 
-    return () => subscription.unsubscribe();
-  }, []);
-
-  // 2. Whenever user changes, fetch their profile, THEN mark loading done
-  useEffect(() => {
-    if (!user) return;
-    let cancelled = false;
-
-    setLoading(true);
-    fetchProfile(user.id).finally(() => {
-      if (!cancelled) setLoading(false);
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        fetchProfile(session.user.id);
+      }
+      setLoading(false);
     });
 
-    return () => { cancelled = true; };
-  }, [user?.id]);
+    return () => subscription.unsubscribe();
+  }, []);
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -125,13 +105,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUp = async (email: string, password: string, metaData?: { clinic_name: string; phone: string; niche?: string; waha_session_name?: string; plan_type?: string }) => {
     const redirectUrl = `${window.location.origin}/`;
-    
+
     const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         emailRedirectTo: redirectUrl,
-        data: metaData 
+        data: metaData
       },
     });
     return { error };
