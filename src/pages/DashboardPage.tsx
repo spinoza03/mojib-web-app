@@ -185,7 +185,7 @@ export default function DashboardPage() {
 
         {/* Upcoming List Section */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-          <Card className="col-span-4 glass-card">
+          <Card className="md:col-span-1 lg:col-span-4 glass-card">
             <CardHeader>
               <CardTitle>Prochains Rendez-vous</CardTitle>
               <CardDescription>
@@ -235,7 +235,7 @@ export default function DashboardPage() {
           </Card>
 
           {/* Quick Actions / Promo Card */}
-          <Card className="col-span-3 glass-card bg-gradient-to-br from-primary/10 to-transparent border-primary/20">
+          <Card className="md:col-span-1 lg:col-span-3 glass-card bg-gradient-to-br from-primary/10 to-transparent border-primary/20">
              <CardHeader>
                <CardTitle>Connecter WhatsApp</CardTitle>
                <CardDescription>

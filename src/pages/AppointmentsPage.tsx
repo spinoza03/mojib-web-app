@@ -282,15 +282,15 @@ export default function AppointmentsPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6 h-[calc(100vh-100px)] flex flex-col">
-        <div className="flex items-center justify-between">
+      <div className="space-y-6 h-auto md:h-[calc(100vh-100px)] flex flex-col">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">Appointments</h1>
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">Appointments</h1>
             <p className="text-muted-foreground">Manage your clinic's schedule.</p>
             <div className="mt-2 flex flex-col sm:flex-row sm:items-center gap-2">
                <span className="text-sm font-medium text-muted-foreground">Timezone:</span>
                <Select value={selectedTimzeone} onValueChange={setSelectedTimezone}>
-                 <SelectTrigger className="w-[220px] h-8 text-xs font-semibold">
+                 <SelectTrigger className="w-full sm:w-[220px] h-8 text-xs font-semibold">
                     <SelectValue placeholder="Select timezone" />
                  </SelectTrigger>
                  <SelectContent>
@@ -317,7 +317,7 @@ export default function AppointmentsPage() {
           <CardHeader className="pb-2">
             <CardTitle className="text-lg font-medium">Calendar View</CardTitle>
           </CardHeader>
-          <CardContent className="flex-1 p-4 min-h-[500px]">
+          <CardContent className="flex-1 p-2 md:p-4 min-h-[350px] md:min-h-[500px]">
             {isLoading ? (
               <div className="h-full flex items-center justify-center">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />

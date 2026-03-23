@@ -147,7 +147,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Immobilier users should only see immobilier experience.
     if (isImmobilier) {
-      const immobilierFeatures: FeatureName[] = ['dashboard', 'advanced-settings', 'immobilier-catalogue'];
+      const immobilierFeatures: FeatureName[] = ['dashboard', 'advanced-settings', 'immobilier-catalogue', 'chat'];
       return immobilierFeatures.includes(featureName);
     }
 

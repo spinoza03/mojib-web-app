@@ -78,23 +78,28 @@ export async function downloadMedia(sessionName: string, messageId: string, exte
     try {
         console.log(`[WAHA] Downloading media for message ${messageId} in session ${sessionName}...`);
         let response;
+        const url1 = `/api/${sessionName}/messages/${encodeURIComponent(messageId)}/download`;
+        const url2 = `/api/sessions/${sessionName}/messages/${encodeURIComponent(messageId)}/download`;
         try {
-            response = await client.get(`/api/${sessionName}/messages/${encodeURIComponent(messageId)}/download`, {
-                responseType: 'arraybuffer'
-            });
-        } catch(e1) {
-            response = await client.get(`/api/sessions/${sessionName}/messages/${encodeURIComponent(messageId)}/download`, {
-                responseType: 'arraybuffer'
-            });
+            console.log(`[WAHA] Trying URL: ${url1}`);
+            response = await client.get(url1, { responseType: 'arraybuffer' });
+        } catch(e1: any) {
+            console.log(`[WAHA] First URL failed (${e1?.response?.status || e1.message}), trying fallback: ${url2}`);
+            response = await client.get(url2, { responseType: 'arraybuffer' });
         }
-        
+
         const buffer = Buffer.from(response.data);
+        if (buffer.length === 0) {
+            console.error('[WAHA] Downloaded media buffer is empty (0 bytes)');
+            return { buffer: null };
+        }
+        console.log(`[WAHA] Media downloaded successfully: ${buffer.length} bytes`);
         const tfp = path.join('/tmp', `waha_media_${messageId}.${extension}`);
         fs.writeFileSync(tfp, buffer);
         console.log(`[WAHA] Media saved to ${tfp}`);
         return { buffer, filepath: tfp };
-    } catch(err) {
-        console.error('[WAHA] Failed to download media completely:', err);
+    } catch(err: any) {
+        console.error(`[WAHA] Failed to download media: ${err?.response?.status || ''} ${err.message}`);
         return { buffer: null };
     }
 }

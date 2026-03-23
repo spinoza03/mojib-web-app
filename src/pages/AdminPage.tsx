@@ -711,7 +711,7 @@ export default function AdminPage() {
 			{/* CREATE USER DIALOG                          */}
 			{/* ============================================ */}
 			<Dialog open={createDialogOpen} onOpenChange={(open) => { if (!open) handleCloseCreate(); }}>
-				<DialogContent className="glass-card border-primary/20 max-w-lg max-h-[90vh] overflow-y-auto">
+				<DialogContent className="glass-card border-primary/20 w-[95vw] max-w-lg max-h-[90vh] overflow-y-auto">
 					<DialogHeader>
 						<DialogTitle className="flex items-center gap-2">
 							<UserPlus className="h-5 w-5 text-primary" />
@@ -808,7 +808,7 @@ export default function AdminPage() {
 					}
 				}}
 			>
-				<DialogContent className="glass-card border-primary/20 max-w-2xl max-h-[90vh] overflow-y-auto">
+				<DialogContent className="glass-card border-primary/20 w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto">
 					<DialogHeader>
 						<DialogTitle>Manage User: {selectedUser?.clinic_name}</DialogTitle>
 						<DialogDescription>

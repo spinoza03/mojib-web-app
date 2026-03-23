@@ -276,6 +276,27 @@ export default function RealEstateCataloguePage() {
 
     setSaving(true);
     try {
+      // 1. Fetch associated media rows to get file paths
+      const { data: mediaRows } = await supabase
+        .from('real_estate_property_media')
+        .select('file_path')
+        .eq('property_id', property.id)
+        .eq('user_id', user.id);
+
+      // 2. Delete actual files from storage bucket
+      const filePaths = (mediaRows || []).map((m: any) => m.file_path).filter(Boolean);
+      if (filePaths.length > 0) {
+        await supabase.storage.from('property-media').remove(filePaths);
+      }
+
+      // 3. Delete media rows from DB
+      await supabase
+        .from('real_estate_property_media')
+        .delete()
+        .eq('property_id', property.id)
+        .eq('user_id', user.id);
+
+      // 4. Delete the property record
       const { error } = await supabase
         .from('real_estate_properties')
         .delete()

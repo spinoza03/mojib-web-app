@@ -178,15 +178,15 @@ export default function FinancePage() {
                                 </CardHeader>
                                 <CardContent className="p-0">
                                     <div className="overflow-x-auto">
-                                        <table className="w-full text-sm">
+                                        <table className="w-full text-sm min-w-[600px]">
                                             <thead>
                                                 <tr className="border-b border-white/10 text-muted-foreground text-left bg-black/20">
-                                                    <th className="p-4 font-medium">Date</th>
-                                                    <th className="p-4 font-medium">Patient</th>
-                                                    <th className="p-4 font-medium">Acte</th>
-                                                    <th className="p-4 font-medium text-right">CA (Encaissé)</th>
-                                                    <th className="p-4 font-medium text-right">Coût</th>
-                                                    <th className="p-4 font-medium text-right">Marge Nette</th>
+                                                    <th className="p-3 md:p-4 font-medium">Date</th>
+                                                    <th className="p-3 md:p-4 font-medium">Patient</th>
+                                                    <th className="p-3 md:p-4 font-medium hidden sm:table-cell">Acte</th>
+                                                    <th className="p-3 md:p-4 font-medium text-right">CA</th>
+                                                    <th className="p-3 md:p-4 font-medium text-right hidden sm:table-cell">Coût</th>
+                                                    <th className="p-3 md:p-4 font-medium text-right">Marge</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-white/5">
@@ -197,22 +197,22 @@ export default function FinancePage() {
                                                 ) : (
                                                     treatments.map((t) => (
                                                         <tr key={t.id} className="hover:bg-white/5 transition-colors">
-                                                            <td className="p-4 whitespace-nowrap text-muted-foreground">
-                                                                {moment(t.date).format('DD MMM YYYY')}
+                                                            <td className="p-3 md:p-4 whitespace-nowrap text-muted-foreground text-xs md:text-sm">
+                                                                {moment(t.date).format('DD MMM')}
                                                             </td>
-                                                            <td className="p-4 font-medium">
+                                                            <td className="p-3 md:p-4 font-medium truncate max-w-[120px] md:max-w-none">
                                                                 {t.patients?.first_name} {t.patients?.last_name}
                                                             </td>
-                                                            <td className="p-4 text-primary">
+                                                            <td className="p-3 md:p-4 text-primary hidden sm:table-cell">
                                                                 {t.treatment_name}
                                                             </td>
-                                                            <td className="p-4 text-right">
+                                                            <td className="p-3 md:p-4 text-right text-xs md:text-sm">
                                                                 {t.collected_amount} DH
                                                             </td>
-                                                            <td className="p-4 text-right text-red-400">
+                                                            <td className="p-3 md:p-4 text-right text-red-400 hidden sm:table-cell">
                                                                 - {t.product_cost} DH
                                                             </td>
-                                                            <td className="p-4 text-right font-bold text-green-400">
+                                                            <td className="p-3 md:p-4 text-right font-bold text-green-400 text-xs md:text-sm">
                                                                 +{t.net_profit} DH
                                                             </td>
                                                         </tr>

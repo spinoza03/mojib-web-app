@@ -439,7 +439,7 @@ export default function ConnectPage() {
 				<Card className="glass-card border-primary/20 overflow-hidden shadow-2xl">
 					<CardContent className="p-0">
 						{isEssentiel ? (
-							<div className="p-16 flex flex-col items-center justify-center text-center space-y-6">
+							<div className="p-6 md:p-16 flex flex-col items-center justify-center text-center space-y-6">
 								<div className="h-24 w-24 bg-primary/10 rounded-full flex items-center justify-center mb-2 border border-primary/20 shadow-inner">
 									<Lock className="h-10 w-10 text-primary" />
 								</div>
@@ -459,10 +459,10 @@ export default function ConnectPage() {
 								</Button>
 							</div>
 						) : (
-						<div className="grid md:grid-cols-2 min-h-[500px]">
+						<div className="grid md:grid-cols-2 min-h-[auto] md:min-h-[500px]">
 
 							{/* Instructions */}
-							<div className="p-8 space-y-8 flex flex-col justify-center bg-secondary/10 border-r border-white/5">
+							<div className="p-4 md:p-8 space-y-6 md:space-y-8 flex flex-col justify-center bg-secondary/10 border-b md:border-b-0 md:border-r border-white/5">
 								<div className="space-y-6">
 									<div className="flex items-start gap-4 p-4 rounded-lg bg-white/5 border border-white/10">
 										<div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary shrink-0">1</div>
@@ -498,7 +498,7 @@ export default function ConnectPage() {
 							</div>
 
 							{/* QR Display */}
-							<div className="p-8 flex flex-col items-center justify-center bg-gradient-to-br from-black/40 to-black/60 relative">
+							<div className="p-4 md:p-8 flex flex-col items-center justify-center bg-gradient-to-br from-black/40 to-black/60 relative">
 
 								{status === 'connected' ? (
 									<div className="text-center space-y-6 animate-in fade-in zoom-in duration-500">

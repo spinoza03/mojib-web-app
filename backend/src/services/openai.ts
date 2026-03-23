@@ -146,6 +146,7 @@ export async function transcribeAudio(audioFilePath: string): Promise<string | n
         const response = await openai.audio.transcriptions.create({
             file: fs.createReadStream(audioFilePath),
             model: 'whisper-1',
+            prompt: 'Darija Moroccan Arabic: chouka, mchmach, byout, salon, chqqa, dar, villa, magasin, terrain, quartier, etage, garage, ascenseur, vis-à-vis, finition, khidma, salonat, hammam, bit, kouzina, marjan, acima, carrefour, derb, zanqa, hay, bloc, résidence, syndic, tabiya, moulkiya, notaire, compromis, taman, loyer, kafalat, contrat, simsar',
         });
         return response.text;
     } catch (error) {

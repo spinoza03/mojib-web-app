@@ -113,7 +113,7 @@ export function Sidebar() {
         <nav className="flex-1 px-3 py-6 space-y-1">
           {navItems.map((item) => {
             const isImmobilierNav = item.path.startsWith('/immobilier');
-            if (isImmobilier && !isImmobilierNav && item.path !== '/dashboard' && item.path !== '/settings') {
+            if (isImmobilier && !isImmobilierNav && item.path !== '/dashboard' && item.path !== '/settings' && item.path !== '/connect') {
               return null;
             }
             if (!isImmobilier && isImmobilierNav) {

@@ -150,40 +150,53 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
         // Extract patient phone to pass to AI
         const patientPhone = phone_number.split('@')[0];
 
-        if (message.hasMedia) {
-            const mediaType = message._data?.type;
+        if (message.hasMedia || message._data?.type === 'ptt' || message._data?.type === 'audio' || message._data?.type === 'image') {
+            // Detect media type from multiple possible WAHA payload fields
+            const mediaType = message._data?.type || message.type;
+            console.log(`[Media] hasMedia=${message.hasMedia}, _data.type=${message._data?.type}, message.type=${message.type}, detected=${mediaType}`);
+
+            // Extract message ID robustly
+            let msgId: string = '';
+            if (typeof message.id === 'string') {
+                msgId = message.id;
+            } else if (typeof message.id === 'object' && message.id !== null) {
+                msgId = (message.id as any)._serialized || (message.id as any).id || String(message.id);
+            }
+            console.log(`[Media] Extracted message ID: ${msgId}`);
+
             if (mediaType === 'ptt' || mediaType === 'audio') {
-                console.log('Received audio message, downloading...');
-                let msgId = message.id;
-                // Sometimes WAHA message.id is an object, but we mapped it to string in WAMessage. Let's ensure it's a string identifier.
-                if (typeof msgId === 'object') {
-                    msgId = (msgId as any)._serialized || (msgId as any).id;
-                }
+                console.log('[Media] Processing audio message...');
                 const mediaRes = await downloadMedia(sessionName || '', msgId, 'ogg');
                 if (mediaRes.filepath) {
                     const transcription = await transcribeAudio(mediaRes.filepath);
                     if (transcription) {
                         textContent = transcription;
-                        console.log('Transcribed Audio:', textContent);
-                        try { require('fs').unlinkSync(mediaRes.filepath); } catch(e) {}
+                        console.log('[Media] Transcribed Audio:', textContent);
+                    } else {
+                        console.warn('[Media] Whisper transcription returned null');
                     }
+                    // Always clean up temp file
+                    try { require('fs').unlinkSync(mediaRes.filepath); } catch(e) {}
+                } else {
+                    console.error('[Media] Audio download failed — no filepath returned');
                 }
-            } 
+            }
             else if (mediaType === 'image') {
-                console.log('Received image message, downloading...');
-                let msgId = message.id;
-                if (typeof msgId === 'object') {
-                    msgId = (msgId as any)._serialized || (msgId as any).id;
-                }
+                console.log('[Media] Processing image message...');
                 const mediaRes = await downloadMedia(sessionName || '', msgId, 'jpeg');
-                if (mediaRes.buffer) {
+                if (mediaRes.buffer && mediaRes.buffer.length > 0) {
                     const b64 = mediaRes.buffer.toString('base64');
                     imageUrl = `data:image/jpeg;base64,${b64}`;
-                    console.log('Image converted to base64 successfully');
+                    console.log(`[Media] Image converted to base64 successfully (${mediaRes.buffer.length} bytes)`);
+                } else {
+                    console.error(`[Media] Image download failed — buffer is ${mediaRes.buffer ? 'empty' : 'null'}`);
                 }
             }
             else if (mediaType === 'video') {
-                console.log('Received video message (Not supported by vision yet)');
+                console.log('[Media] Received video message (Not supported by vision yet)');
+            }
+            else {
+                console.warn(`[Media] Unknown media type: ${mediaType}`);
             }
         }
 

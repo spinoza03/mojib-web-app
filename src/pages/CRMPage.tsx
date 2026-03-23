@@ -250,9 +250,9 @@ export default function CRMPage() {
 				</div>
 
 				<div className="grid lg:grid-cols-3 gap-6">
-					
+
 					{/* Patients List (Left Column) */}
-					<Card className="lg:col-span-1 glass-card h-[calc(100vh-200px)] flex flex-col">
+					<Card className="lg:col-span-1 glass-card h-[60vh] lg:h-[calc(100vh-200px)] flex flex-col">
 						<CardHeader className="pb-3 border-b border-white/5 space-y-4">
 							<div className="relative">
 								<Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -290,18 +290,18 @@ export default function CRMPage() {
 					</Card>
 
 					{/* Life File / Dossier (Right Columns) */}
-					<Card className="lg:col-span-2 glass-card h-[calc(100vh-200px)] flex flex-col">
+					<Card className="lg:col-span-2 glass-card h-[60vh] lg:h-[calc(100vh-200px)] flex flex-col">
 						{selectedPatient ? (
 							<>
 								<CardHeader className="pb-0 border-b border-white/5 bg-secondary/10">
 									<Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
 										<div className="flex justify-between items-start mb-6">
 											<div>
-												<CardTitle className="text-2xl flex items-center gap-2">
+												<CardTitle className="text-lg md:text-2xl flex flex-wrap items-center gap-2">
 													Dossier : {selectedPatient.first_name} {selectedPatient.last_name}
-													{treatments.length > 3 && <Badge className="bg-amber-500/20 text-amber-500 border-amber-500/30">Client Fidèle (Elite)</Badge>}
+													{treatments.length > 3 && <Badge className="bg-amber-500/20 text-amber-500 border-amber-500/30 text-xs">Client Fidèle</Badge>}
 												</CardTitle>
-												<div className="flex gap-4 mt-2 text-sm text-muted-foreground">
+												<div className="flex flex-wrap gap-2 md:gap-4 mt-2 text-xs md:text-sm text-muted-foreground">
 													{selectedPatient.phone && <span>📞 {selectedPatient.phone}</span>}
 													{selectedPatient.email && <span>✉️ {selectedPatient.email}</span>}
 													<span>📅 Créé {moment(selectedPatient.created_at).fromNow()}</span>

@@ -125,7 +125,8 @@ export async function getRealEstatePropertiesForPrompt(userId: string): Promise<
         .from('real_estate_properties')
         .select('*')
         .eq('user_id', userId)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(15);
 
     if (propError) {
         console.error('[RealEstate] Error fetching properties:', propError);
@@ -353,6 +354,11 @@ Le Pivot (Conviction) :
 
 Engagement Visuel :
 - Ne décris jamais un bien sans proposer d'envoyer les photos.
+
+[CRITICAL RULE - NO RAW URLS]
+Tu ne dois JAMAIS afficher de liens URL bruts (http://..., https://...) dans tes messages.
+Pour envoyer des photos, utilise UNIQUEMENT l'outil get_property_photos avec le PropertyID.
+Ne copie-colle jamais les URLs des photos ou vidéos dans la conversation.
 
 [MANDATORY INTERACTION RULES]
 Ton : Professionnel, rassurant, très convaincant (même à 2h du matin).
