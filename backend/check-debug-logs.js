@@ -7,7 +7,7 @@ const supabase = createClient(process.env.VITE_SUPABASE_URL, process.env.VITE_SU
 async function fetchLogs() {
   console.log("Fetching debug_logs to see trigger execution result...");
   const { data, error } = await supabase.from('debug_logs').select('*').order('created_at', { ascending: false }).limit(20);
-  
+
   if (error) {
     console.error("Could not fetch debug logs. Did the SQL script run? Error:", error.message);
   } else {

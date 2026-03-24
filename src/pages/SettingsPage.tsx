@@ -235,9 +235,25 @@ export default function SettingsPage() {
 	};
 
 	const isImmobilier = profile?.niche === 'immobilier';
+	const isRestaurant = profile?.niche === 'restaurant';
 
 	// Niche-aware labels (DB columns stay the same)
-	const nicheLabels = isImmobilier
+	const nicheLabels = isRestaurant
+		? {
+			entityName: 'Restaurant',
+			namePlaceholder: 'ex. Restaurant Chez Hassan',
+			personSingular: 'Client',
+			personPlural: 'Clients',
+			capacityLabel: 'Commandes Simultanées Max',
+			capacityDesc: "Le nombre de commandes que vous pouvez traiter en simultané.",
+			slotDesc: "Le temps moyen de préparation d'une commande (en minutes).",
+			aiCardDesc: "Configurez le comportement de votre serveur IA WhatsApp.",
+			hoursDesc: "Les horaires d'ouverture de votre restaurant.",
+			additionalInfoDesc: "Ajoutez des détails : spécialités, zones de livraison, minimum de commande, etc.",
+			additionalInfoPlaceholder: "Exemple:\n- Spécialités: Tajine, Couscous, Grillades\n- Livraison gratuite > 100 DH\n- Zone: Guéliz, Hivernage, Marrakech centre\n- Minimum commande livraison: 50 DH",
+			reminderVar: '{patient_name} = nom du client',
+		}
+		: isImmobilier
 		? {
 			entityName: 'Agence',
 			namePlaceholder: 'ex. Agence Immobilière Al Baraka',
@@ -258,8 +274,8 @@ export default function SettingsPage() {
 			personSingular: 'Patient',
 			personPlural: 'Patients',
 			capacityLabel: 'Capacité par Créneau (Patients en simultané)',
-			capacityDesc: "{nicheLabels.capacityDesc}",
-			slotDesc: '{nicheLabels.slotDesc}',
+			capacityDesc: "Le nombre de patients que vous pouvez recevoir à la même heure.",
+			slotDesc: 'La durée standard réservée pour chaque consultation (par ex: 30 minutes).',
 			aiCardDesc: "Configurez le comportement de votre réceptionniste IA. Pas besoin d'écrire de prompts compliqués !",
 			hoursDesc: "Les heures d'ouverture de votre clinique.",
 			additionalInfoDesc: "Ajoutez des détails : tarifs, spécialités, assurance (CNSS/CNOPS), ou autres informations clés.",
@@ -267,7 +283,28 @@ export default function SettingsPage() {
 			reminderVar: '{patient_name} = nom du patient',
 		};
 
-	const PLAN_DISPLAY = isImmobilier
+	const PLAN_DISPLAY = isRestaurant
+		? [
+			{
+				id: 'essentiel' as const,
+				name: "L'Organisé",
+				price: '299 DH',
+				features: ['Gestion du menu', 'Suivi commandes', 'Tableau de bord'],
+			},
+			{
+				id: 'pro' as const,
+				name: "L'Automatisé",
+				price: '499 DH',
+				features: ["Tout dans L'Organisé", 'Serveur IA WhatsApp', 'Rappels automatiques'],
+			},
+			{
+				id: 'elite' as const,
+				name: "L'Elite",
+				price: '799 DH',
+				features: ["Tout dans L'Automatisé", 'Marketing WhatsApp', 'Gestion stocks avancée'],
+			},
+		]
+		: isImmobilier
 		? [
 			{
 				id: 'essentiel' as const,
@@ -393,7 +430,7 @@ export default function SettingsPage() {
 								<CardHeader>
 									<CardTitle className="flex items-center gap-2">
 										<Building2 className="h-5 w-5 text-primary" />
-										Identité de {isImmobilier ? "l'Agence" : 'la Clinique'} / Entreprise
+										Identité {isRestaurant ? 'du Restaurant' : isImmobilier ? "de l'Agence" : 'de la Clinique'} / Entreprise
 									</CardTitle>
 								</CardHeader>
 								<CardContent className="space-y-6">
@@ -417,7 +454,7 @@ export default function SettingsPage() {
 									</div>
 
 									<div className="space-y-2">
-										<Label>Nom de {isImmobilier ? "l'Agence" : 'la Clinique'} / Entreprise</Label>
+										<Label>Nom {isRestaurant ? 'du Restaurant' : isImmobilier ? "de l'Agence" : 'de la Clinique'} / Entreprise</Label>
 										<Input
 											value={clinicName}
 											onChange={(e) => setClinicName(e.target.value)}

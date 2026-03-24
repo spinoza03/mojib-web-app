@@ -5,10 +5,10 @@ import { supabase } from '@/integrations/supabase/client';
 // 1. Define the Profile shape
 type PlanType = 'essentiel' | 'pro' | 'elite';
 type SubscriptionStatus = 'trial' | 'active' | 'expired';
-export type FeatureName = 'dashboard' | 'chat' | 'calendar-sync' | 'advanced-settings' | 'crm' | 'finance' | 'immobilier-catalogue';
-export type NicheType = 'dentistry' | 'doctor' | 'beauty_center' | 'immobilier' | 'car_location' | 'centre_formation';
+export type FeatureName = 'dashboard' | 'chat' | 'calendar-sync' | 'advanced-settings' | 'crm' | 'finance' | 'immobilier-catalogue' | 'restaurant-menu';
+export type NicheType = 'dentistry' | 'doctor' | 'beauty_center' | 'immobilier' | 'car_location' | 'centre_formation' | 'restaurant';
 
-const ACTIVE_NICHES: NicheType[] = ['dentistry', 'doctor', 'beauty_center', 'immobilier'];
+const ACTIVE_NICHES: NicheType[] = ['dentistry', 'doctor', 'beauty_center', 'immobilier', 'restaurant'];
 
 interface Profile {
   id: string;
@@ -142,7 +142,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (profile.role === 'superuser') return true;
 
     const isImmobilier = profile.niche === 'immobilier';
+    const isRestaurant = profile.niche === 'restaurant';
     const isEssentiel = profile.plan_type === 'essentiel';
+
+    // Restaurant users should only see restaurant experience.
+    if (isRestaurant) {
+      const restaurantFeatures: FeatureName[] = ['dashboard', 'advanced-settings', 'restaurant-menu', 'chat', 'calendar-sync'];
+      return restaurantFeatures.includes(featureName);
+    }
 
     // Immobilier users should only see immobilier experience.
     if (isImmobilier) {
@@ -150,8 +157,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return immobilierFeatures.includes(featureName);
     }
 
-    // Non-immobilier users should not access immobilier modules.
+    // Non-niche users should not access niche-specific modules.
     if (featureName === 'immobilier-catalogue') return false;
+    if (featureName === 'restaurant-menu') return false;
 
     // WhatsApp automation stays locked for Essentiel, upgrade available in-app.
     if (featureName === 'chat' && isEssentiel) return false;

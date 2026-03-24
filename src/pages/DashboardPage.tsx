@@ -4,17 +4,18 @@ import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Calendar, Users, Clock, ArrowRight, Activity, Loader2, Bot, MessageSquare } from 'lucide-react';
+import { Calendar, Users, Clock, ArrowRight, Activity, Loader2, Bot, MessageSquare, ShoppingCart } from 'lucide-react';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 
 export default function DashboardPage() {
   const { user, profile, isNicheActive } = useAuth();
   const isImmobilier = profile?.niche === 'immobilier';
+  const isRestaurant = profile?.niche === 'restaurant';
 
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  
+
   // Stats State
   const [stats, setStats] = useState({
     totalAppointments: 0,
@@ -32,76 +33,110 @@ export default function DashboardPage() {
       try {
         const now = new Date().toISOString();
 
-        // Try doctor_id first (new schema), fall back to user_id (old schema)
-        let { count: totalCount, error: totalErr } = await supabase
-          .from('appointments')
-          .select('*', { count: 'exact', head: true })
-          .eq('doctor_id', user.id);
-
-        if (totalErr) {
-          ({ count: totalCount } = await supabase
-            .from('appointments')
+        if (profile?.niche === 'restaurant') {
+          // Restaurant stats: orders & customers
+          const { count: totalOrders } = await supabase
+            .from('restaurant_orders' as any)
             .select('*', { count: 'exact', head: true })
-            .eq('user_id', user.id));
-        }
+            .eq('user_id', user.id);
 
-        // Upcoming count — try start_time, fall back to date_time
-        let { count: upcomingCount, error: upcomingErr } = await supabase
-          .from('appointments')
-          .select('*', { count: 'exact', head: true })
-          .eq('doctor_id', user.id)
-          .gte('start_time', now);
-
-        if (upcomingErr) {
-          ({ count: upcomingCount } = await supabase
-            .from('appointments')
+          const { count: pendingOrders } = await supabase
+            .from('restaurant_orders' as any)
             .select('*', { count: 'exact', head: true })
             .eq('user_id', user.id)
-            .gte('date_time', now));
-        }
+            .in('status', ['pending', 'preparing']);
 
-        // Unique patients/contacts count
-        let { count: patientsCount, error: patientsErr } = await supabase
-          .from('appointments')
-          .select('patient_phone', { count: 'exact', head: true })
-          .eq('doctor_id', user.id);
+          const { count: totalCustomers } = await supabase
+            .from('restaurant_customers' as any)
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', user.id);
 
-        if (patientsErr) {
-          ({ count: patientsCount } = await supabase
-            .from('appointments')
-            .select('phone', { count: 'exact', head: true })
-            .eq('user_id', user.id));
-        }
+          setStats({
+            totalAppointments: totalOrders || 0,
+            upcomingAppointments: pendingOrders || 0,
+            totalPatients: totalCustomers || 0,
+          });
 
-        setStats({
-          totalAppointments: totalCount || 0,
-          upcomingAppointments: upcomingCount || 0,
-          totalPatients: patientsCount || 0,
-        });
-
-        // Fetch next 5 appointments — try new columns, fall back to old
-        let { data: upcomingData, error: listErr } = await supabase
-          .from('appointments')
-          .select('*')
-          .eq('doctor_id', user.id)
-          .gte('start_time', now)
-          .order('start_time', { ascending: true })
-          .limit(5);
-
-        if (listErr) {
-          ({ data: upcomingData } = await supabase
-            .from('appointments')
+          // Recent orders
+          const { data: recentOrders } = await supabase
+            .from('restaurant_orders' as any)
             .select('*')
             .eq('user_id', user.id)
-            .gte('date_time', now)
-            .order('date_time', { ascending: true })
-            .limit(5));
-        }
+            .in('status', ['pending', 'preparing', 'ready_for_pickup', 'out_for_delivery'])
+            .order('created_at', { ascending: false })
+            .limit(5);
 
-        if (upcomingData) {
-          setUpcomingList(upcomingData);
-        }
+          if (recentOrders) {
+            setUpcomingList(recentOrders);
+          }
+        } else {
+          // Medical / Immobilier: appointment stats
+          let { count: totalCount, error: totalErr } = await supabase
+            .from('appointments')
+            .select('*', { count: 'exact', head: true })
+            .eq('doctor_id', user.id);
 
+          if (totalErr) {
+            ({ count: totalCount } = await supabase
+              .from('appointments')
+              .select('*', { count: 'exact', head: true })
+              .eq('user_id', user.id));
+          }
+
+          let { count: upcomingCount, error: upcomingErr } = await supabase
+            .from('appointments')
+            .select('*', { count: 'exact', head: true })
+            .eq('doctor_id', user.id)
+            .gte('start_time', now);
+
+          if (upcomingErr) {
+            ({ count: upcomingCount } = await supabase
+              .from('appointments')
+              .select('*', { count: 'exact', head: true })
+              .eq('user_id', user.id)
+              .gte('date_time', now));
+          }
+
+          let { count: patientsCount, error: patientsErr } = await supabase
+            .from('appointments')
+            .select('patient_phone', { count: 'exact', head: true })
+            .eq('doctor_id', user.id);
+
+          if (patientsErr) {
+            ({ count: patientsCount } = await supabase
+              .from('appointments')
+              .select('phone', { count: 'exact', head: true })
+              .eq('user_id', user.id));
+          }
+
+          setStats({
+            totalAppointments: totalCount || 0,
+            upcomingAppointments: upcomingCount || 0,
+            totalPatients: patientsCount || 0,
+          });
+
+          let { data: upcomingData, error: listErr } = await supabase
+            .from('appointments')
+            .select('*')
+            .eq('doctor_id', user.id)
+            .gte('start_time', now)
+            .order('start_time', { ascending: true })
+            .limit(5);
+
+          if (listErr) {
+            ({ data: upcomingData } = await supabase
+              .from('appointments')
+              .select('*')
+              .eq('user_id', user.id)
+              .gte('date_time', now)
+              .order('date_time', { ascending: true })
+              .limit(5));
+          }
+
+          if (upcomingData) {
+            setUpcomingList(upcomingData);
+          }
+        }
       } catch (error) {
         console.error("Error loading dashboard:", error);
       } finally {
@@ -110,7 +145,7 @@ export default function DashboardPage() {
     }
 
     fetchDashboardData();
-  }, [user]);
+  }, [user, profile]);
 
   // Greeting based on time
   const hour = new Date().getHours();
@@ -123,10 +158,10 @@ export default function DashboardPage() {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">
-              {greeting}, {profile?.clinic_name || (isImmobilier ? 'Agent' : 'Docteur')}
+              {greeting}, {profile?.clinic_name || (isRestaurant ? 'Chef' : isImmobilier ? 'Agent' : 'Docteur')}
             </h1>
             <p className="text-muted-foreground mt-1">
-              {isImmobilier ? "Voici l'activité de votre agence aujourd'hui." : "Voici ce qui se passe dans votre clinique aujourd'hui."}
+              {isRestaurant ? "Voici l'activité de votre restaurant aujourd'hui." : isImmobilier ? "Voici l'activité de votre agence aujourd'hui." : "Voici ce qui se passe dans votre clinique aujourd'hui."}
             </p>
           </div>
           <div className="flex gap-3">
@@ -171,8 +206,8 @@ export default function DashboardPage() {
         <div className="grid gap-4 md:grid-cols-3">
           <Card className="glass-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Rendez-vous</CardTitle>
-              <Activity className="h-4 w-4 text-primary" />
+              <CardTitle className="text-sm font-medium">{isRestaurant ? 'Total Commandes' : 'Total Rendez-vous'}</CardTitle>
+              {isRestaurant ? <ShoppingCart className="h-4 w-4 text-primary" /> : <Activity className="h-4 w-4 text-primary" />}
             </CardHeader>
             <CardContent>
               {loading ? (
@@ -180,13 +215,13 @@ export default function DashboardPage() {
               ) : (
                 <div className="text-2xl font-bold">{stats.totalAppointments}</div>
               )}
-              <p className="text-xs text-muted-foreground mt-1">Réservations depuis toujours</p>
+              <p className="text-xs text-muted-foreground mt-1">{isRestaurant ? 'Commandes depuis toujours' : 'Réservations depuis toujours'}</p>
             </CardContent>
           </Card>
 
           <Card className="glass-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">À Venir</CardTitle>
+              <CardTitle className="text-sm font-medium">{isRestaurant ? 'En Cours' : 'À Venir'}</CardTitle>
               <Clock className="h-4 w-4 text-blue-500" />
             </CardHeader>
             <CardContent>
@@ -195,13 +230,13 @@ export default function DashboardPage() {
               ) : (
                 <div className="text-2xl font-bold">{stats.upcomingAppointments}</div>
               )}
-              <p className="text-xs text-muted-foreground mt-1">Planifiés pour le futur</p>
+              <p className="text-xs text-muted-foreground mt-1">{isRestaurant ? 'En attente ou en préparation' : 'Planifiés pour le futur'}</p>
             </CardContent>
           </Card>
 
           <Card className="glass-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{isImmobilier ? 'Total Clients' : 'Total Patients'}</CardTitle>
+              <CardTitle className="text-sm font-medium">{isRestaurant ? 'Total Clients' : isImmobilier ? 'Total Clients' : 'Total Patients'}</CardTitle>
               <Users className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
@@ -219,9 +254,9 @@ export default function DashboardPage() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
           <Card className="md:col-span-1 lg:col-span-4 glass-card">
             <CardHeader>
-              <CardTitle>Prochains Rendez-vous</CardTitle>
+              <CardTitle>{isRestaurant ? 'Commandes Actives' : 'Prochains Rendez-vous'}</CardTitle>
               <CardDescription>
-                Vos 5 prochaines visites planifiées.
+                {isRestaurant ? 'Vos dernières commandes en cours.' : 'Vos 5 prochaines visites planifiées.'}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -248,7 +283,7 @@ export default function DashboardPage() {
                           {apt.patient_name ? apt.patient_name.charAt(0).toUpperCase() : 'U'}
                         </div>
                         <div>
-                          <p className="font-medium">{apt.patient_name || (isImmobilier ? 'Client Inconnu' : 'Patient Inconnu')}</p>
+                          <p className="font-medium">{apt.patient_name || apt.customer_name || (isRestaurant ? 'Client' : isImmobilier ? 'Client Inconnu' : 'Patient Inconnu')}</p>
                           <p className="text-sm text-muted-foreground">
                             {apt.start_time
                               ? `${format(new Date(apt.start_time), 'dd/MM/yyyy')} à ${format(new Date(apt.start_time), 'HH:mm')}`
@@ -275,7 +310,7 @@ export default function DashboardPage() {
              <CardHeader>
                <CardTitle>Connecter WhatsApp</CardTitle>
                <CardDescription>
-                 {isImmobilier ? 'Votre agent commercial IA est-il actif ?' : 'Votre réceptionniste IA est-elle active ?'}
+                 {isRestaurant ? 'Votre serveur IA est-il actif ?' : isImmobilier ? 'Votre agent commercial IA est-il actif ?' : 'Votre réceptionniste IA est-elle active ?'}
                </CardDescription>
              </CardHeader>
              <CardContent className="space-y-4">

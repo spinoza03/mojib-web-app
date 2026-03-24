@@ -25,6 +25,9 @@ app.post('/waha/webhook', wahaWebhookHandler);
 import { adminImpersonateHandler } from './controllers/adminController';
 app.post('/api/admin/impersonate', adminImpersonateHandler);
 
+import { sendBulkMarketingHandler } from './controllers/marketingController';
+app.post('/api/marketing/bulk-send', sendBulkMarketingHandler);
+
 // Start server
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);

@@ -81,29 +81,36 @@ export async function getClinicBotSettingsBySession(sessionName: string) {
         return null;
     }
 
-    // `data` is the JSON object returned from the RPC
-    let systemPrompt = data.system_prompt || '';
-    if (!systemPrompt) {
-        // When the app has niche = immobilier, we want a completely different prompt style.
-        if (data.niche === 'immobilier') {
-            systemPrompt = generateRealEstateMasterPrompt(
-                data.clinic_name,
-                data.agent_name || data.clinic_name || 'Agent Immobilier',
-                data.working_hours,
-                data.tone,
-                data.languages,
-                data.additional_info
-            );
-        } else {
-            systemPrompt = generateMasterPrompt(
-                data.clinic_name,
-                data.working_hours,
-                data.tone,
-                data.languages,
-                data.additional_info
-            );
-        }
+    // Always auto-generate the system prompt based on the current niche and structured fields.
+    // This prevents stale/mismatched prompts stored in DB from overriding the niche.
+    let systemPrompt: string;
+    if (data.niche === 'immobilier') {
+        systemPrompt = generateRealEstateMasterPrompt(
+            data.clinic_name,
+            data.agent_name || data.clinic_name || 'Agent Immobilier',
+            data.working_hours,
+            data.tone,
+            data.languages,
+            data.additional_info
+        );
+    } else if (data.niche === 'restaurant') {
+        systemPrompt = generateRestaurantMasterPrompt(
+            data.clinic_name,
+            data.working_hours,
+            data.tone,
+            data.languages,
+            data.additional_info
+        );
+    } else {
+        systemPrompt = generateMasterPrompt(
+            data.clinic_name,
+            data.working_hours,
+            data.tone,
+            data.languages,
+            data.additional_info
+        );
     }
+    console.log(`[Config] Session=${sessionName} niche=${data.niche} prompt_length=${systemPrompt.length}`);
 
     return {
         user_id: data.user_id,
@@ -713,5 +720,360 @@ export async function updateBotCooldown(userId: string, seconds: number) {
 
     if (error) console.error('Error updating cooldown:', error);
     return !error;
+}
+
+// ==========================================
+// RESTAURANT niche
+// ==========================================
+
+function generateRestaurantMasterPrompt(
+    restaurantName: string,
+    workingHours: string,
+    tone: string,
+    languages: string,
+    additionalInfo: string
+): string {
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('en-CA');
+    const dayStr = now.toLocaleDateString('en-US', { weekday: 'long' });
+    const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+
+    const toneDesc =
+        tone === 'friendly,casual'
+            ? 'Amical, chaleureux et enthousiaste'
+            : tone === 'formal,direct'
+                ? 'Formel, direct et efficace'
+                : 'Professionnel, accueillant et persuasif';
+
+    const langList = languages ? languages.split(',').map(l => l.trim()) : ['darija', 'french'];
+    let langInstruction = 'Réponds dans la langue du client. Si Darija, utilise les caractères arabes. Si Français, réponds en Français.';
+    if (langList.includes('english') && !langList.includes('darija')) {
+        langInstruction = 'Respond in professional English.';
+    } else if (langList.includes('french') && !langList.includes('darija')) {
+        langInstruction = 'Réponds en Français professionnel.';
+    }
+
+    return `[TEMPORAL CONTEXT]
+Today's Date: ${dateStr} (YYYY-MM-DD)
+Today's Day: ${dayStr}
+Current Time: ${timeStr}
+
+[SYSTEM_ROLE]
+Tu es le Serveur IA / Garçon Virtuel du restaurant ${restaurantName}.
+Ta mission est de prendre les commandes des clients via WhatsApp, de leur présenter le menu, de les conseiller et de finaliser les commandes avec tous les détails.
+
+[CORE PERSONALITY]
+Ton: ${toneDesc}.
+Langue: ${langInstruction}
+Mission: Convertir chaque conversation en une commande confirmée. Être serviable, rapide et précis.
+
+[RESTAURANT INFO]
+Nom: ${restaurantName}
+Horaires: ${workingHours}
+${additionalInfo ? `Informations supplémentaires:\n${additionalInfo}` : ''}
+
+[MENU]
+Voici le menu actuel du restaurant:
+{{restaurant_menu}}
+
+[ORDERING PROTOCOL — OBLIGATOIRE]
+1. ACCUEIL: Salue le client chaleureusement et propose de montrer le menu.
+2. MENU: Quand demandé, présente le menu par catégorie avec les prix. Appelle l'outil get_menu pour obtenir le menu à jour.
+3. PRISE DE COMMANDE: Note chaque plat demandé avec la quantité.
+4. PERSONNALISATION: Pour CHAQUE plat, demande s'il y a des modifications (sans oignons, extra sauce, bien cuit, etc.).
+5. SUGGESTION OBLIGATOIRE: TOUJOURS proposer des desserts et des boissons si disponibles dans le menu. Exemple: "Vous voulez ajouter un dessert ou une boisson avec votre commande?"
+6. RÉCAPITULATIF: Avant de confirmer, envoie un résumé complet:
+   - Chaque article avec quantité et personnalisation
+   - Le total estimé
+   - L'adresse de livraison (si livraison)
+7. CONFIRMATION: Demande au client de confirmer avant d'appeler place_order.
+
+[TOOL INSTRUCTIONS]
+- get_menu: Appelle cet outil quand le client demande le menu ou des informations sur les plats.
+- place_order: Appelle UNIQUEMENT après que le client a confirmé:
+  * Les articles et quantités
+  * Les personnalisations
+  * Son nom
+  * Son numéro (utilise le numéro WhatsApp actuel par défaut)
+  * L'adresse de livraison (si livraison)
+- check_item_availability: Utilise cet outil quand le client demande si un plat spécifique est disponible.
+
+[CRITICAL RULES]
+- Ne JAMAIS placer une commande sans confirmation explicite du client.
+- TOUJOURS demander les personnalisations pour chaque plat.
+- TOUJOURS suggérer desserts et boissons.
+- Si un article n'est pas disponible, propose des alternatives du menu.
+- Sois enthousiaste sur les plats populaires.
+
+[DARIJA FOOD VOCABULARY]
+Makla (ماكلة): Nourriture | Tajine (طاجين): Tajine | Mechwi (مشوي): Grillé
+Hlib (حليب): Lait | Atay (أتاي): Thé | Qahwa (قهوة): Café
+Khobz (خبز): Pain | Zit (زيت): Huile | L-ma (الما): Eau
+Lfakya (الفاكية): Fruits | Khodra (خضرة): Légumes
+Lhem (لحم): Viande | Djaj (دجاج): Poulet | Hout (حوت): Poisson
+Bghri: Envie de / Je veux | Zid: Ajoute encore | Bla: Sans | M3a: Avec`;
+}
+
+export async function getRestaurantMenuForPrompt(userId: string): Promise<string> {
+    const { data: categories, error: catErr } = await supabase
+        .from('restaurant_menu_categories')
+        .select('*')
+        .eq('user_id', userId)
+        .order('display_order', { ascending: true });
+
+    if (catErr) {
+        console.error('[Restaurant] Error fetching categories:', catErr);
+        return 'Menu non disponible.';
+    }
+
+    const { data: items, error: itemErr } = await supabase
+        .from('restaurant_menu_items')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('is_available', true)
+        .order('name', { ascending: true });
+
+    if (itemErr) {
+        console.error('[Restaurant] Error fetching menu items:', itemErr);
+        return 'Menu non disponible.';
+    }
+
+    if (!items || items.length === 0) return 'Aucun plat disponible actuellement.';
+
+    const catMap: Record<string, any[]> = {};
+    const uncategorized: any[] = [];
+
+    for (const item of items) {
+        if (item.category_id) {
+            if (!catMap[item.category_id]) catMap[item.category_id] = [];
+            catMap[item.category_id].push(item);
+        } else {
+            uncategorized.push(item);
+        }
+    }
+
+    const lines: string[] = [];
+    for (const cat of (categories || [])) {
+        const catItems = catMap[cat.id] || [];
+        if (catItems.length === 0) continue;
+        lines.push(`\n### ${cat.name}`);
+        for (const item of catItems) {
+            lines.push(`- ${item.name} — ${item.price_dh} DH${item.description ? ` (${item.description})` : ''}`);
+        }
+    }
+
+    if (uncategorized.length > 0) {
+        lines.push('\n### Autres');
+        for (const item of uncategorized) {
+            lines.push(`- ${item.name} — ${item.price_dh} DH${item.description ? ` (${item.description})` : ''}`);
+        }
+    }
+
+    return lines.join('\n');
+}
+
+export async function placeRestaurantOrder(
+    userId: string,
+    customerPhone: string,
+    customerName: string,
+    deliveryAddress: string,
+    orderType: string,
+    items: Array<{ item_name: string; quantity: number; customizations?: string }>,
+    notes: string
+): Promise<{ status: string; order?: any }> {
+    try {
+        const cleanPhone = customerPhone ? String(customerPhone).replace(/\D/g, '') : '';
+
+        // Upsert customer by phone
+        let customerId: string | null = null;
+        if (cleanPhone) {
+            const { data: existing } = await supabase
+                .from('restaurant_customers')
+                .select('id')
+                .eq('user_id', userId)
+                .eq('phone', cleanPhone)
+                .maybeSingle();
+
+            customerId = existing?.id ?? null;
+
+            if (!customerId) {
+                const { data: created, error: createErr } = await supabase
+                    .from('restaurant_customers')
+                    .insert({
+                        user_id: userId,
+                        full_name: customerName,
+                        phone: cleanPhone,
+                    })
+                    .select('id')
+                    .single();
+                if (createErr) throw createErr;
+                customerId = created?.id ?? null;
+            }
+        }
+
+        // Match item names to menu items and calculate total
+        const { data: menuItems } = await supabase
+            .from('restaurant_menu_items')
+            .select('id, name, price_dh')
+            .eq('user_id', userId)
+            .eq('is_available', true);
+
+        let totalDh = 0;
+        const orderItems: any[] = [];
+
+        for (const reqItem of items) {
+            const match = (menuItems || []).find(
+                (m: any) => m.name.toLowerCase().includes(reqItem.item_name.toLowerCase()) ||
+                    reqItem.item_name.toLowerCase().includes(m.name.toLowerCase())
+            );
+
+            const unitPrice = match?.price_dh ?? 0;
+            const qty = reqItem.quantity || 1;
+            totalDh += unitPrice * qty;
+
+            orderItems.push({
+                user_id: userId,
+                menu_item_id: match?.id || null,
+                item_name: match?.name || reqItem.item_name,
+                quantity: qty,
+                unit_price_dh: unitPrice,
+                customizations: reqItem.customizations || null,
+            });
+        }
+
+        // Create order
+        const { data: order, error: orderErr } = await supabase
+            .from('restaurant_orders')
+            .insert({
+                user_id: userId,
+                customer_id: customerId,
+                customer_name: customerName,
+                customer_phone: cleanPhone || customerPhone,
+                delivery_address: deliveryAddress || null,
+                order_type: orderType || 'delivery',
+                status: 'pending',
+                total_dh: totalDh,
+                notes: notes || null,
+            })
+            .select('*')
+            .single();
+
+        if (orderErr) throw orderErr;
+
+        // Insert order items
+        if (order && orderItems.length > 0) {
+            const itemsWithOrderId = orderItems.map(i => ({ ...i, order_id: order.id }));
+            const { error: itemsErr } = await supabase
+                .from('restaurant_order_items')
+                .insert(itemsWithOrderId);
+            if (itemsErr) console.error('[Restaurant] Error inserting order items:', itemsErr);
+        }
+
+        // Update customer stats
+        if (customerId) {
+            try {
+                await supabase
+                    .from('restaurant_customers')
+                    .update({ last_order_at: new Date().toISOString() })
+                    .eq('id', customerId);
+            } catch (e) {
+                // Non-critical, ignore
+            }
+        }
+
+        return {
+            status: 'success',
+            order: {
+                id: order?.id,
+                total_dh: totalDh,
+                items_count: orderItems.length,
+                customer_name: customerName,
+                instruction_for_ai: `Confirme la commande au client en Darija/Français. Total: ${totalDh} DH. Numéro de commande: ${order?.id?.slice(0, 8)}.`
+            }
+        };
+    } catch (error: any) {
+        console.error('[Restaurant] place order failed:', error);
+        return { status: 'error', order: { message: error?.message || 'Failed to place order' } };
+    }
+}
+
+export async function checkRestaurantItemAvailability(
+    userId: string,
+    itemName: string
+): Promise<{ status: string; items: any[] }> {
+    try {
+        const { data, error } = await supabase
+            .from('restaurant_menu_items')
+            .select('id, name, price_dh, is_available, description')
+            .eq('user_id', userId)
+            .ilike('name', `%${itemName}%`);
+
+        if (error) throw error;
+
+        return {
+            status: 'success',
+            items: (data || []).map((item: any) => ({
+                name: item.name,
+                price_dh: item.price_dh,
+                available: item.is_available,
+                description: item.description
+            }))
+        };
+    } catch (error: any) {
+        console.error('[Restaurant] check availability failed:', error);
+        return { status: 'error', items: [] };
+    }
+}
+
+export async function getActiveRestaurantProfiles() {
+    const { data, error } = await supabase
+        .from('profiles')
+        .select('id, clinic_name, waha_session_name, subscription_status')
+        .eq('niche', 'restaurant')
+        .in('subscription_status', ['pro', 'trial', 'active']);
+
+    if (error || !data) {
+        if (error) console.error('[Restaurant] Error fetching restaurant profiles:', error);
+        return [];
+    }
+    return data;
+}
+
+export async function getPendingOrderNotifications(userId: string) {
+    const { data, error } = await supabase
+        .from('restaurant_orders')
+        .select('id, customer_name, customer_phone, status, reminders_sent')
+        .eq('user_id', userId)
+        .in('status', ['out_for_delivery', 'ready_for_pickup']);
+
+    if (error || !data) {
+        if (error) console.error('[Restaurant] Error fetching order notifications:', error);
+        return [];
+    }
+
+    return data.filter((order: any) => {
+        const sent: string[] = order.reminders_sent || [];
+        return !sent.includes(order.status);
+    });
+}
+
+export async function markOrderNotificationSent(orderId: string, notificationType: string) {
+    const { data: order } = await supabase
+        .from('restaurant_orders')
+        .select('reminders_sent')
+        .eq('id', orderId)
+        .maybeSingle();
+
+    const currentSent: string[] = order?.reminders_sent || [];
+    currentSent.push(notificationType);
+
+    const { error } = await supabase
+        .from('restaurant_orders')
+        .update({ reminders_sent: currentSent })
+        .eq('id', orderId);
+
+    if (error) {
+        console.error('[Restaurant] Error marking notification sent:', error);
+    }
 }
 

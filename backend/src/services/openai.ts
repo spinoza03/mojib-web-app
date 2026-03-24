@@ -141,6 +141,66 @@ export const REAL_ESTATE_TOOLS = [
     }
 ];
 
+export const RESTAURANT_TOOLS = [
+    {
+        type: "function" as const,
+        function: {
+            name: "get_menu",
+            description: "Retrieve the full restaurant menu grouped by category. Use when the client asks to see the menu, what's available, or asks about specific dishes.",
+            parameters: {
+                type: "object",
+                properties: {},
+                required: []
+            }
+        }
+    },
+    {
+        type: "function" as const,
+        function: {
+            name: "place_order",
+            description: "Place a new order for the client. Only call this AFTER confirming all items, customizations, quantities, and delivery details with the client.",
+            parameters: {
+                type: "object",
+                properties: {
+                    customer_phone: { type: "string", description: "Client phone number" },
+                    customer_name: { type: "string", description: "Client full name" },
+                    delivery_address: { type: "string", description: "Delivery address (empty for pickup/dine-in)" },
+                    order_type: { type: "string", description: "delivery, pickup, or dine_in", enum: ["delivery", "pickup", "dine_in"] },
+                    items: {
+                        type: "array",
+                        description: "Array of items to order",
+                        items: {
+                            type: "object",
+                            properties: {
+                                item_name: { type: "string", description: "Name of the menu item" },
+                                quantity: { type: "number", description: "Quantity ordered" },
+                                customizations: { type: "string", description: "Special requests e.g. 'sans oignons, extra fromage'" }
+                            },
+                            required: ["item_name", "quantity"]
+                        }
+                    },
+                    notes: { type: "string", description: "General order notes" }
+                },
+                required: ["customer_phone", "customer_name", "items"]
+            }
+        }
+    },
+    {
+        type: "function" as const,
+        function: {
+            name: "check_item_availability",
+            description: "Check if a specific menu item is currently available. Use when the client asks if something is in stock.",
+            parameters: {
+                type: "object",
+                properties: {
+                    item_name: { type: "string", description: "Name of the item to check (fuzzy match)" }
+                },
+                required: ["item_name"]
+            }
+        }
+    }
+];
+
 export async function transcribeAudio(audioFilePath: string): Promise<string | null> {
     try {
         const response = await openai.audio.transcriptions.create({
@@ -163,7 +223,7 @@ export async function generateResponse(
     imageUrl?: string,
     toolsList: any[] = TOOLS
 ) {
-    const dynamicPrompt = `${systemPrompt}\n\n[PATIENT INFO]\nThe patient is messaging you from the WhatsApp number: ${patientPhone}. If they ask you to use their current number to book, DO NOT ask them to type it again. You already know it is exactly ${patientPhone}.`;
+    const dynamicPrompt = `${systemPrompt}\n\n[CONTACT INFO]\nThe user is messaging you from the WhatsApp number: ${patientPhone}. If they ask you to use their current number to book, DO NOT ask them to type it again. You already know it is exactly ${patientPhone}.`;
 
     const messages: any[] = [
         { role: 'system', content: dynamicPrompt }

@@ -9,9 +9,12 @@ import {
     getRealEstatePropertiesForPrompt,
     searchRealEstateProperties,
     getRealEstatePropertyPhotos,
-    bookRealEstatePropertyVisit
+    bookRealEstatePropertyVisit,
+    getRestaurantMenuForPrompt,
+    placeRestaurantOrder,
+    checkRestaurantItemAvailability
 } from '../services/supabase';
-import { generateResponse, generateDoctorResponse, transcribeAudio, DOCTOR_TOOLS, REAL_ESTATE_TOOLS } from '../services/openai';
+import { generateResponse, generateDoctorResponse, transcribeAudio, DOCTOR_TOOLS, REAL_ESTATE_TOOLS, RESTAURANT_TOOLS } from '../services/openai';
 import { sendText, startTyping, downloadMedia, sendImage } from '../services/waha';
 import OpenAI from 'openai';
 
@@ -80,8 +83,8 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
                 res.status(200).send('Ignored: Subscription Expired');
                 return;
             }
-            // isDoctorBot is TRUE only for medical niches — NOT for immobilier
-            isDoctorBot = config.niche !== 'immobilier';
+            // isDoctorBot is TRUE only for medical niches — NOT for immobilier or restaurant
+            isDoctorBot = config.niche !== 'immobilier' && config.niche !== 'restaurant';
             sessionName = config.waha_session_name;
         } else {
             console.log(`[Unknown Session] No config found for session: ${payload.session}`);
@@ -96,6 +99,12 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
         if (config.niche === 'immobilier') {
             const propertiesBlock = await getRealEstatePropertiesForPrompt(config.user_id);
             system_prompt = String(system_prompt || '').replace('{{uploaded_properties_list}}', propertiesBlock);
+        }
+
+        // Restaurant: inject the menu into the prompt
+        if (config.niche === 'restaurant') {
+            const menuBlock = await getRestaurantMenuForPrompt(config.user_id);
+            system_prompt = String(system_prompt || '').replace('{{restaurant_menu}}', menuBlock);
         }
 
         // 2. Cooldown & Manual Takeover Check
@@ -215,11 +224,14 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
 
         // 5. Generate AI Response
         const isRealEstateBot = config.niche === 'immobilier';
+        const isRestaurantBot = config.niche === 'restaurant';
         let aiMessage = await (isDoctorBot
             ? generateDoctorResponse(system_prompt, patientPhone, chatHistory, textContent, imageUrl)
             : isRealEstateBot
                 ? generateResponse(system_prompt, patientPhone, chatHistory, textContent, imageUrl, REAL_ESTATE_TOOLS)
-                : generateResponse(system_prompt, patientPhone, chatHistory, textContent, imageUrl));
+                : isRestaurantBot
+                    ? generateResponse(system_prompt, patientPhone, chatHistory, textContent, imageUrl, RESTAURANT_TOOLS)
+                    : generateResponse(system_prompt, patientPhone, chatHistory, textContent, imageUrl));
 
         if (!aiMessage) {
             res.status(500).send('Failed to generate AI response');
@@ -302,6 +314,32 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
                     );
                     tempMessages.push({ role: "tool", tool_call_id: toolCall.id, content: JSON.stringify(result) });
                 }
+                // Restaurant tools
+                else if (toolCall.function.name === 'get_menu') {
+                    console.log(`[TOOL] Get Menu (${config.user_id})`);
+                    const menuData = await getRestaurantMenuForPrompt(config.user_id);
+                    tempMessages.push({ role: "tool", tool_call_id: toolCall.id, content: JSON.stringify({ status: 'success', menu: menuData }) });
+                }
+                else if (toolCall.function.name === 'place_order') {
+                    const args = JSON.parse(toolCall.function.arguments);
+                    console.log(`[TOOL] Place Order (${config.user_id}):`, args);
+                    const result = await placeRestaurantOrder(
+                        config.user_id,
+                        args.customer_phone,
+                        args.customer_name,
+                        args.delivery_address || '',
+                        args.order_type || 'delivery',
+                        args.items || [],
+                        args.notes || ''
+                    );
+                    tempMessages.push({ role: "tool", tool_call_id: toolCall.id, content: JSON.stringify(result) });
+                }
+                else if (toolCall.function.name === 'check_item_availability') {
+                    const args = JSON.parse(toolCall.function.arguments);
+                    console.log(`[TOOL] Check Item Availability (${config.user_id}):`, args);
+                    const result = await checkRestaurantItemAvailability(config.user_id, args.item_name);
+                    tempMessages.push({ role: "tool", tool_call_id: toolCall.id, content: JSON.stringify(result) });
+                }
             }
 
             // Request a new completion with the tool results appended
@@ -309,7 +347,7 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
                 const followUpResponse = await openaiClient.chat.completions.create({
                     model: "gpt-4o-mini",
                     messages: tempMessages,
-                    tools: isRealEstateBot ? REAL_ESTATE_TOOLS : DOCTOR_TOOLS
+                    tools: isRealEstateBot ? REAL_ESTATE_TOOLS : isRestaurantBot ? RESTAURANT_TOOLS : DOCTOR_TOOLS
                 });
                 finalResponseContent = followUpResponse.choices[0].message.content;
             } catch (err) {

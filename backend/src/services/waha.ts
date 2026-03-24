@@ -74,6 +74,30 @@ export async function getMediaUrl(mediaKey: string): Promise<string | null> {
     return null; 
 }
 
+export async function sendBulkText(chatIds: string[], text: string, sessionName?: string, delayMs: number = 1500): Promise<{ sent: number; failed: number }> {
+    let sent = 0;
+    let failed = 0;
+    for (const chatId of chatIds) {
+        try {
+            await client.post('/api/sendText', {
+                session: sessionName || WAHA_SESSION,
+                chatId,
+                text
+            });
+            sent++;
+            // Delay between messages to avoid rate limiting
+            if (delayMs > 0 && chatIds.indexOf(chatId) < chatIds.length - 1) {
+                await new Promise(resolve => setTimeout(resolve, delayMs));
+            }
+        } catch (error) {
+            console.error(`[WAHA] Bulk send failed for ${chatId}:`, error);
+            failed++;
+        }
+    }
+    console.log(`[WAHA] Bulk send complete: ${sent} sent, ${failed} failed`);
+    return { sent, failed };
+}
+
 export async function downloadMedia(sessionName: string, messageId: string, extension: string = 'ogg'): Promise<{ buffer: Buffer | null, filepath?: string }> {
     try {
         console.log(`[WAHA] Downloading media for message ${messageId} in session ${sessionName}...`);

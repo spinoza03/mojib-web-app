@@ -16,6 +16,11 @@ import RealEstateCataloguePage from "./pages/RealEstateCataloguePage";
 import RealEstateCRMPage from "./pages/RealEstateCRMPage";
 import RealEstateMatchingPage from "./pages/RealEstateMatchingPage";
 import RealEstateFinancePage from "./pages/RealEstateFinancePage";
+import RestaurantMenuPage from "./pages/RestaurantMenuPage";
+import RestaurantOrdersPage from "./pages/RestaurantOrdersPage";
+import RestaurantCustomersPage from "./pages/RestaurantCustomersPage";
+import RestaurantInventoryPage from "./pages/RestaurantInventoryPage";
+import RestaurantFinancePage from "./pages/RestaurantFinancePage";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 
@@ -171,6 +176,48 @@ const App = () => (
               element={
                 <ProtectedFeatureRoute featureName="immobilier-catalogue">
                   <RealEstateFinancePage />
+                </ProtectedFeatureRoute>
+              }
+            />
+
+            {/* Restaurant Routes */}
+            <Route
+              path="/restaurant/menu"
+              element={
+                <ProtectedFeatureRoute featureName="restaurant-menu">
+                  <RestaurantMenuPage />
+                </ProtectedFeatureRoute>
+              }
+            />
+            <Route
+              path="/restaurant/orders"
+              element={
+                <ProtectedFeatureRoute featureName="restaurant-menu">
+                  <RestaurantOrdersPage />
+                </ProtectedFeatureRoute>
+              }
+            />
+            <Route
+              path="/restaurant/customers"
+              element={
+                <ProtectedFeatureRoute featureName="restaurant-menu">
+                  <RestaurantCustomersPage />
+                </ProtectedFeatureRoute>
+              }
+            />
+            <Route
+              path="/restaurant/inventory"
+              element={
+                <ProtectedFeatureRoute featureName="restaurant-menu">
+                  <RestaurantInventoryPage />
+                </ProtectedFeatureRoute>
+              }
+            />
+            <Route
+              path="/restaurant/finance"
+              element={
+                <ProtectedFeatureRoute featureName="restaurant-menu">
+                  <RestaurantFinancePage />
                 </ProtectedFeatureRoute>
               }
             />

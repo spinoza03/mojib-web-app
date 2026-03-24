@@ -6,19 +6,20 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Building2, Lock, Mail, Phone, Loader2, Stethoscope, Scissors, Home, Car, GraduationCap, HeartPulse, CheckCircle2 } from 'lucide-react';
+import { Building2, Lock, Mail, Phone, Loader2, Stethoscope, Scissors, Home, Car, GraduationCap, HeartPulse, CheckCircle2, UtensilsCrossed } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
-type NicheType = 'dentistry' | 'doctor' | 'beauty_center' | 'immobilier' | 'car_location' | 'centre_formation';
+type NicheType = 'dentistry' | 'doctor' | 'beauty_center' | 'immobilier' | 'car_location' | 'centre_formation' | 'restaurant';
 
 const NICHES: { id: NicheType; label: string; labelFr: string; icon: any; active: boolean }[] = [
   { id: 'dentistry', label: 'Dentistry', labelFr: 'Dentisterie', icon: Stethoscope, active: true },
   { id: 'doctor', label: 'Doctor / Clinic', labelFr: 'Médecin / Clinique', icon: HeartPulse, active: true },
   { id: 'beauty_center', label: 'Centres d\'esthétique', labelFr: 'Centres d\'esthétique', icon: Scissors, active: true },
   { id: 'immobilier', label: 'Real Estate', labelFr: 'Immobilier', icon: Home, active: true },
+  { id: 'restaurant', label: 'Restaurant', labelFr: 'Restaurant', icon: UtensilsCrossed, active: true },
   { id: 'car_location', label: 'Car Rental', labelFr: 'Location de voitures', icon: Car, active: false },
   { id: 'centre_formation', label: 'Training Center', labelFr: 'Centre de formation', icon: GraduationCap, active: false },
 ];
@@ -99,6 +100,43 @@ const IMMOBILIER_PLANS: typeof PLANS = [
   }
 ];
 
+const RESTAURANT_PLANS: typeof PLANS = [
+  {
+    id: 'essentiel',
+    label: "L'Organisé",
+    price: '299 DH',
+    pitchFr: 'Gérez votre menu et vos commandes avec clarté et simplicité.',
+    pitchEn: 'Manage your menu and orders with clarity and simplicity.',
+    valuesFr: ['Gestion du menu', 'Suivi des commandes', 'Tableau de bord activité'],
+    valuesEn: ['Menu management', 'Order tracking', 'Activity dashboard'],
+    ctaFr: 'Digitalisez votre restaurant aujourd\'hui.',
+    ctaEn: 'Digitalize your restaurant today.'
+  },
+  {
+    id: 'pro',
+    label: "L'Automatisé",
+    price: '499 DH',
+    pitchFr: 'Un serveur IA WhatsApp qui prend les commandes 24h/24.',
+    pitchEn: 'A WhatsApp AI waiter that takes orders 24/7.',
+    valuesFr: ["Tout dans L'Organisé", 'Serveur IA WhatsApp', 'Rappels automatiques'],
+    valuesEn: ["Everything in L'Organisé", 'WhatsApp AI Waiter', 'Auto reminders'],
+    ctaFr: 'Ne manquez plus jamais une commande.',
+    ctaEn: 'Never miss an order again.',
+    recommended: true
+  },
+  {
+    id: 'elite',
+    label: "L'Elite",
+    price: '799 DH',
+    pitchFr: 'Marketing, fidélisation et domination totale dans votre zone.',
+    pitchEn: 'Marketing, loyalty, and total dominance in your area.',
+    valuesFr: ["Tout dans L'Automatisé", 'Marketing WhatsApp', 'Gestion des stocks avancée'],
+    valuesEn: ["Everything in L'Automatisé", 'WhatsApp Marketing', 'Advanced inventory management'],
+    ctaFr: 'Devenez le restaurant numéro 1.',
+    ctaEn: 'Become the #1 restaurant.'
+  }
+];
+
 /** Generate a WAHA-safe session name: lowercase, no spaces, no arabic, + random digits */
 function generateWahaSessionName(clinicName: string): string {
   const sanitized = clinicName
@@ -140,7 +178,7 @@ export default function AuthPage() {
 
   useEffect(() => {
     if (!showPlansModal) return;
-    const defaultPlan = selectedNiche === 'immobilier' ? 'pro' : 'essentiel';
+    const defaultPlan = (selectedNiche === 'immobilier' || selectedNiche === 'restaurant') ? 'pro' : 'essentiel';
     setSelectedPlan(defaultPlan);
   }, [showPlansModal, selectedNiche]);
 
@@ -208,7 +246,7 @@ export default function AuthPage() {
     },
   }[lang];
 
-  const plansForSelectedNiche = selectedNiche === 'immobilier' ? IMMOBILIER_PLANS : PLANS;
+  const plansForSelectedNiche = selectedNiche === 'immobilier' ? IMMOBILIER_PLANS : selectedNiche === 'restaurant' ? RESTAURANT_PLANS : PLANS;
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

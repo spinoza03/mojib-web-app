@@ -1,4 +1,4 @@
-import { getAllActiveReminderConfigs, getAppointmentsNeedingReminder, markReminderSent } from './supabase';
+import { getAllActiveReminderConfigs, getAppointmentsNeedingReminder, markReminderSent, getActiveRestaurantProfiles, getPendingOrderNotifications, markOrderNotificationSent } from './supabase';
 import { sendText } from './waha';
 
 const REMINDER_CHECK_INTERVAL_MS = 2 * 60 * 1000; // Every 2 minutes
@@ -50,6 +50,42 @@ async function checkAndSendReminders() {
         }
     } catch (error) {
         console.error('[Reminder Service] Error:', error);
+    }
+
+    // Restaurant order status notifications
+    try {
+        const restaurantProfiles = await getActiveRestaurantProfiles();
+
+        if (restaurantProfiles.length > 0) {
+            for (const profile of restaurantProfiles) {
+                const orders = await getPendingOrderNotifications(profile.id);
+
+                for (const order of orders) {
+                    if (!order.customer_phone) continue;
+
+                    const chatId = order.customer_phone.includes('@')
+                        ? order.customer_phone
+                        : `${order.customer_phone.replace(/\D/g, '')}@c.us`;
+
+                    const restaurantName = profile.clinic_name || 'Restaurant';
+                    let message = '';
+
+                    if (order.status === 'out_for_delivery') {
+                        message = `مرحبا ${order.customer_name || 'عزيزي الزبون'} 🛵\nالطلبية ديالك من ${restaurantName} خرجات و فالطريق ليك! شوية و توصل. بالصحة و الراحة! 🍽️`;
+                    } else if (order.status === 'ready_for_pickup') {
+                        message = `مرحبا ${order.customer_name || 'عزيزي الزبون'} ✅\nالطلبية ديالك من ${restaurantName} جاهزة! تقدر تجي دير le pickup ديالها. بالصحة و الراحة! 🍽️`;
+                    }
+
+                    if (message) {
+                        console.log(`[Restaurant Reminder] Sending ${order.status} notification to ${chatId} for ${restaurantName}`);
+                        await sendText(chatId, message, profile.waha_session_name || undefined);
+                        await markOrderNotificationSent(order.id, order.status);
+                    }
+                }
+            }
+        }
+    } catch (error) {
+        console.error('[Reminder Service] Restaurant notification error:', error);
     }
 }
 

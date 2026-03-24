@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { Home, Calendar, Smartphone, Settings, LogOut, Shield, Stethoscope, HeartPulse, Scissors, Home as HomeIcon, Car, GraduationCap, Users, PieChart } from 'lucide-react';
+import { Home, Calendar, Smartphone, Settings, LogOut, Shield, Stethoscope, HeartPulse, Scissors, Home as HomeIcon, Car, GraduationCap, Users, PieChart, UtensilsCrossed, ShoppingCart, Package } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { useAuth, type FeatureName, type NicheType } from '@/hooks/useAuth';
@@ -11,6 +11,7 @@ const NICHE_CONFIG: Record<NicheType, { label: string; icon: any; active: boolea
   doctor: { label: '🩺 Médecin / Clinique', icon: HeartPulse, active: true },
   beauty_center: { label: '💆 Centre de Beauté', icon: Scissors, active: true },
   immobilier: { label: '🏠 Immobilier', icon: HomeIcon, active: true },
+  restaurant: { label: '🍽️ Restaurant', icon: UtensilsCrossed, active: true },
   car_location: { label: '🚗 Location Voitures', icon: Car, active: false },
   centre_formation: { label: '🎓 Centre Formation', icon: GraduationCap, active: false },
 };
@@ -25,6 +26,11 @@ const navItems: Array<{ icon: any; label: string; path: string; feature: Feature
   { icon: Users, label: 'CRM Immobilier', path: '/immobilier/crm', feature: 'immobilier-catalogue' },
   { icon: Calendar, label: 'Matching Immobilier', path: '/immobilier/matching', feature: 'immobilier-catalogue' },
   { icon: PieChart, label: 'Finance Immobilier', path: '/immobilier/finance', feature: 'immobilier-catalogue' },
+  { icon: UtensilsCrossed, label: 'Menu', path: '/restaurant/menu', feature: 'restaurant-menu' },
+  { icon: ShoppingCart, label: 'Commandes', path: '/restaurant/orders', feature: 'restaurant-menu' },
+  { icon: Users, label: 'Clients', path: '/restaurant/customers', feature: 'restaurant-menu' },
+  { icon: Package, label: 'Stock', path: '/restaurant/inventory', feature: 'restaurant-menu' },
+  { icon: PieChart, label: 'Finance', path: '/restaurant/finance', feature: 'restaurant-menu' },
   { icon: Settings, label: 'Configuration IA', path: '/settings', feature: 'advanced-settings' },
 ];
 
@@ -32,6 +38,7 @@ export function Sidebar() {
   const location = useLocation();
   const { profile, signOut, user, canAccessFeature } = useAuth();
   const isImmobilier = profile?.niche === 'immobilier';
+  const isRestaurant = profile?.niche === 'restaurant';
 
   const handleLogout = async () => {
     await signOut();
@@ -113,10 +120,17 @@ export function Sidebar() {
         <nav className="flex-1 px-3 py-6 space-y-1">
           {navItems.map((item) => {
             const isImmobilierNav = item.path.startsWith('/immobilier');
+            const isRestaurantNav = item.path.startsWith('/restaurant');
             if (isImmobilier && !isImmobilierNav && item.path !== '/dashboard' && item.path !== '/settings' && item.path !== '/connect' && item.path !== '/appointments') {
               return null;
             }
+            if (isRestaurant && !isRestaurantNav && item.path !== '/dashboard' && item.path !== '/settings' && item.path !== '/connect' && item.path !== '/appointments') {
+              return null;
+            }
             if (!isImmobilier && isImmobilierNav) {
+              return null;
+            }
+            if (!isRestaurant && isRestaurantNav) {
               return null;
             }
 
