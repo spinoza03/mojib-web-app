@@ -236,6 +236,7 @@ export default function SettingsPage() {
 
 	const isImmobilier = profile?.niche === 'immobilier';
 	const isRestaurant = profile?.niche === 'restaurant';
+	const isMedical = ['dentistry', 'doctor', 'beauty_center'].includes(profile?.niche || '');
 
 	// Niche-aware labels (DB columns stay the same)
 	const nicheLabels = isRestaurant
@@ -268,7 +269,8 @@ export default function SettingsPage() {
 			additionalInfoPlaceholder: "Exemple:\n- Zone: Marrakech, Guéliz, Hivernage\n- Types: Appartements, Villas, Locaux commerciaux\n- Commission: 2.5% du prix de vente",
 			reminderVar: '{patient_name} = nom du client',
 		}
-		: {
+		: isMedical
+		? {
 			entityName: 'Clinique',
 			namePlaceholder: 'ex. Centre Dentaire Sourire',
 			personSingular: 'Patient',
@@ -281,6 +283,20 @@ export default function SettingsPage() {
 			additionalInfoDesc: "Ajoutez des détails : tarifs, spécialités, assurance (CNSS/CNOPS), ou autres informations clés.",
 			additionalInfoPlaceholder: "Exemple:\n- Consultation: 200 DH\n- Détartrage: 300 DH\n- Nous acceptons la CNSS\n- Spécialités: Orthodontie, Implantologie",
 			reminderVar: '{patient_name} = nom du patient',
+		}
+		: {
+			entityName: 'Entreprise',
+			namePlaceholder: 'ex. Mon Entreprise',
+			personSingular: 'Client',
+			personPlural: 'Clients',
+			capacityLabel: 'Capacité par Créneau (Clients en simultané)',
+			capacityDesc: "Le nombre de clients que vous pouvez recevoir à la même heure.",
+			slotDesc: 'La durée standard réservée pour chaque rendez-vous (par ex: 30 minutes).',
+			aiCardDesc: "Configurez le comportement de votre assistant IA. Pas besoin d'écrire de prompts compliqués !",
+			hoursDesc: "Les horaires d'ouverture de votre entreprise.",
+			additionalInfoDesc: "Ajoutez des détails : services proposés, tarifs, ou autres informations clés pour votre assistant IA.",
+			additionalInfoPlaceholder: "Exemple:\n- Services: Consultation, Formation, Accompagnement\n- Tarifs sur devis\n- Zone d'intervention: Tout le Maroc",
+			reminderVar: '{patient_name} = nom du client',
 		};
 
 	const PLAN_DISPLAY = isRestaurant
@@ -430,7 +446,7 @@ export default function SettingsPage() {
 								<CardHeader>
 									<CardTitle className="flex items-center gap-2">
 										<Building2 className="h-5 w-5 text-primary" />
-										Identité {isRestaurant ? 'du Restaurant' : isImmobilier ? "de l'Agence" : 'de la Clinique'} / Entreprise
+										Identité {nicheLabels.entityName === 'Restaurant' ? 'du Restaurant' : nicheLabels.entityName === 'Agence' ? "de l'Agence" : nicheLabels.entityName === 'Clinique' ? 'de la Clinique' : "de l'Entreprise"} / Entreprise
 									</CardTitle>
 								</CardHeader>
 								<CardContent className="space-y-6">
@@ -438,7 +454,7 @@ export default function SettingsPage() {
 										<Avatar className="h-20 w-20 border-2 border-primary/20">
 											<AvatarImage src={avatarUrl} className="object-cover" />
 											<AvatarFallback className="text-xl font-bold bg-secondary">
-												{clinicName.substring(0, 2).toUpperCase() || 'DR'}
+												{clinicName.substring(0, 2).toUpperCase() || 'AI'}
 											</AvatarFallback>
 										</Avatar>
 
@@ -454,7 +470,7 @@ export default function SettingsPage() {
 									</div>
 
 									<div className="space-y-2">
-										<Label>Nom {isRestaurant ? 'du Restaurant' : isImmobilier ? "de l'Agence" : 'de la Clinique'} / Entreprise</Label>
+										<Label>Nom {nicheLabels.entityName === 'Restaurant' ? 'du Restaurant' : nicheLabels.entityName === 'Agence' ? "de l'Agence" : nicheLabels.entityName === 'Clinique' ? 'de la Clinique' : "de l'Entreprise"} / Entreprise</Label>
 										<Input
 											value={clinicName}
 											onChange={(e) => setClinicName(e.target.value)}

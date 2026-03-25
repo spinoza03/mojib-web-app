@@ -44,16 +44,16 @@ export const TOOLS = [
     }
 ];
 
-export const DOCTOR_TOOLS = [
+export const APPOINTMENT_TOOLS = [
     {
         type: "function" as const,
         function: {
             name: "check_availability",
-            description: "Use this tool to fetch a list of already booked (busy) appointment times for a doctor on a specific date. You MUST provide the date in YYYY-MM-DD format and the doctor_id. Use the results to identify gaps in the schedule for the patient.",
+            description: "Use this tool to fetch a list of already booked (busy) appointment times for the business on a specific date. You MUST provide the date in YYYY-MM-DD format and the doctor_id (which is the business owner's ID). Use the results to identify gaps in the schedule for the client.",
             parameters: {
                 type: "object",
                 properties: {
-                    doctor_id: { type: "string" },
+                    doctor_id: { type: "string", description: "The business owner's user ID" },
                     start_date_time: { type: "string", description: "Format: YYYY-MM-DD 00:00:00+00" }
                 },
                 required: ["doctor_id", "start_date_time"]
@@ -64,21 +64,34 @@ export const DOCTOR_TOOLS = [
         type: "function" as const,
         function: {
             name: "book_appointment",
-            description: "Use this tool ONLY after the patient has clearly confirmed a specific time slot. It creates a new appointment in the database.",
+            description: "Use this tool ONLY after the client has clearly confirmed a specific time slot. It creates a new appointment in the database.",
             parameters: {
                 type: "object",
                 properties: {
-                    doctor_id: { type: "string" },
+                    doctor_id: { type: "string", description: "The business owner's user ID" },
                     start_date_time: { type: "string", description: "Format: YYYY-MM-DD HH:mm:ss+00" },
-                    patient_phone: { type: "string" },
-                    patient_name: { type: "string" },
-                    reason: { type: "string" }
+                    patient_phone: { type: "string", description: "Client's phone number" },
+                    patient_name: { type: "string", description: "Client's full name" },
+                    reason: { type: "string", description: "Reason for the appointment" }
                 },
                 required: ["doctor_id", "start_date_time", "patient_phone", "patient_name", "reason"]
             }
         }
     }
 ];
+
+// Legacy alias for backward compatibility
+export const DOCTOR_TOOLS = APPOINTMENT_TOOLS;
+
+/**
+ * Returns the correct tool set based on business niche.
+ */
+export function getNicheTools(niche: string) {
+    if (niche === 'immobilier') return REAL_ESTATE_TOOLS;
+    if (niche === 'restaurant') return RESTAURANT_TOOLS;
+    // All other niches (medical, beauty, car_location, centre_formation, etc.) use appointment tools
+    return APPOINTMENT_TOOLS;
+}
 
 export const REAL_ESTATE_TOOLS = [
     {
@@ -271,6 +284,11 @@ export async function generateResponse(
     }
 }
 
+/**
+ * @deprecated Use generateResponse() directly with getNicheTools(niche).
+ * generateMasterPrompt() already includes temporal context for all niches.
+ * Kept for backward compatibility but simply delegates to generateResponse.
+ */
 export async function generateDoctorResponse(
     systemPrompt: string,
     patientPhone: string,
@@ -278,15 +296,6 @@ export async function generateDoctorResponse(
     newMessage: string,
     imageUrl?: string
 ) {
-    const now = new Date();
-    // Use proper zero-padded formats 
-    const dd = String(now.getDate()).padStart(2, '0');
-    const mm = String(now.getMonth() + 1).padStart(2, '0');
-    const yyyy = now.getFullYear();
-    
-    const temporalContext = `[TEMPORAL CONTEXT] Today's Date: ${yyyy}-${mm}-${dd} (YYYY-MM-DD) Today's Day: ${now.toLocaleDateString('en-US', {weekday: 'long'})} Current Time: ${now.toLocaleTimeString('en-GB', {hour: '2-digit', minute:'2-digit'})}\n`;
-    
-    const fullSystemPrompt = temporalContext + systemPrompt;
-    
-    return generateResponse(fullSystemPrompt, patientPhone, chatHistory, newMessage, imageUrl, DOCTOR_TOOLS);
+    // No longer adds duplicate temporal context — generateMasterPrompt() already includes it.
+    return generateResponse(systemPrompt, patientPhone, chatHistory, newMessage, imageUrl, APPOINTMENT_TOOLS);
 }

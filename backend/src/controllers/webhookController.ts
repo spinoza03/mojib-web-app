@@ -14,7 +14,7 @@ import {
     placeRestaurantOrder,
     checkRestaurantItemAvailability
 } from '../services/supabase';
-import { generateResponse, generateDoctorResponse, transcribeAudio, DOCTOR_TOOLS, REAL_ESTATE_TOOLS, RESTAURANT_TOOLS } from '../services/openai';
+import { generateResponse, generateDoctorResponse, transcribeAudio, DOCTOR_TOOLS, APPOINTMENT_TOOLS, REAL_ESTATE_TOOLS, RESTAURANT_TOOLS, getNicheTools } from '../services/openai';
 import { sendText, startTyping, downloadMedia, sendImage } from '../services/waha';
 import OpenAI from 'openai';
 
@@ -63,7 +63,6 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
         const phone_number = message.from;
         
         // 1. Fetch DB settings
-        let isDoctorBot = false;
         let config: any = null;
         let sessionName: string | undefined = undefined;
 
@@ -83,14 +82,15 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
                 res.status(200).send('Ignored: Subscription Expired');
                 return;
             }
-            // isDoctorBot is TRUE only for medical niches — NOT for immobilier or restaurant
-            isDoctorBot = config.niche !== 'immobilier' && config.niche !== 'restaurant';
             sessionName = config.waha_session_name;
         } else {
             console.log(`[Unknown Session] No config found for session: ${payload.session}`);
             res.status(200).send('Ignored: Unknown session');
             return;
         }
+
+        // Determine the correct tool set for this niche
+        const nicheTools = getNicheTools(config.niche);
 
         const cooldown_seconds = config.cooldown_seconds || 60;
         let system_prompt = config.system_prompt;
@@ -222,16 +222,8 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
         // 4. Trigger typing effect
         await startTyping(phone_number, sessionName);
 
-        // 5. Generate AI Response
-        const isRealEstateBot = config.niche === 'immobilier';
-        const isRestaurantBot = config.niche === 'restaurant';
-        let aiMessage = await (isDoctorBot
-            ? generateDoctorResponse(system_prompt, patientPhone, chatHistory, textContent, imageUrl)
-            : isRealEstateBot
-                ? generateResponse(system_prompt, patientPhone, chatHistory, textContent, imageUrl, REAL_ESTATE_TOOLS)
-                : isRestaurantBot
-                    ? generateResponse(system_prompt, patientPhone, chatHistory, textContent, imageUrl, RESTAURANT_TOOLS)
-                    : generateResponse(system_prompt, patientPhone, chatHistory, textContent, imageUrl));
+        // 5. Generate AI Response — unified for all niches
+        let aiMessage = await generateResponse(system_prompt, patientPhone, chatHistory, textContent, imageUrl, nicheTools);
 
         if (!aiMessage) {
             res.status(500).send('Failed to generate AI response');
@@ -347,7 +339,7 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
                 const followUpResponse = await openaiClient.chat.completions.create({
                     model: "gpt-4o-mini",
                     messages: tempMessages,
-                    tools: isRealEstateBot ? REAL_ESTATE_TOOLS : isRestaurantBot ? RESTAURANT_TOOLS : DOCTOR_TOOLS
+                    tools: nicheTools
                 });
                 finalResponseContent = followUpResponse.choices[0].message.content;
             } catch (err) {

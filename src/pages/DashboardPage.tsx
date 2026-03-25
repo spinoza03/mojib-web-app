@@ -12,6 +12,7 @@ export default function DashboardPage() {
   const { user, profile, isNicheActive } = useAuth();
   const isImmobilier = profile?.niche === 'immobilier';
   const isRestaurant = profile?.niche === 'restaurant';
+  const isMedical = ['dentistry', 'doctor', 'beauty_center'].includes(profile?.niche || '');
 
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -158,10 +159,10 @@ export default function DashboardPage() {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">
-              {greeting}, {profile?.clinic_name || (isRestaurant ? 'Chef' : isImmobilier ? 'Agent' : 'Docteur')}
+              {greeting}, {profile?.clinic_name || (isRestaurant ? 'Chef' : isImmobilier ? 'Agent' : isMedical ? 'Docteur' : 'Gérant')}
             </h1>
             <p className="text-muted-foreground mt-1">
-              {isRestaurant ? "Voici l'activité de votre restaurant aujourd'hui." : isImmobilier ? "Voici l'activité de votre agence aujourd'hui." : "Voici ce qui se passe dans votre clinique aujourd'hui."}
+              {isRestaurant ? "Voici l'activité de votre restaurant aujourd'hui." : isImmobilier ? "Voici l'activité de votre agence aujourd'hui." : isMedical ? "Voici ce qui se passe dans votre clinique aujourd'hui." : "Voici l'activité de votre entreprise aujourd'hui."}
             </p>
           </div>
           <div className="flex gap-3">
@@ -236,7 +237,7 @@ export default function DashboardPage() {
 
           <Card className="glass-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{isRestaurant ? 'Total Clients' : isImmobilier ? 'Total Clients' : 'Total Patients'}</CardTitle>
+              <CardTitle className="text-sm font-medium">{isRestaurant ? 'Total Clients' : isImmobilier ? 'Total Clients' : isMedical ? 'Total Patients' : 'Total Clients'}</CardTitle>
               <Users className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
@@ -283,7 +284,7 @@ export default function DashboardPage() {
                           {apt.patient_name ? apt.patient_name.charAt(0).toUpperCase() : 'U'}
                         </div>
                         <div>
-                          <p className="font-medium">{apt.patient_name || apt.customer_name || (isRestaurant ? 'Client' : isImmobilier ? 'Client Inconnu' : 'Patient Inconnu')}</p>
+                          <p className="font-medium">{apt.patient_name || apt.customer_name || (isRestaurant ? 'Client' : isImmobilier ? 'Client Inconnu' : isMedical ? 'Patient Inconnu' : 'Contact Inconnu')}</p>
                           <p className="text-sm text-muted-foreground">
                             {apt.start_time
                               ? `${format(new Date(apt.start_time), 'dd/MM/yyyy')} à ${format(new Date(apt.start_time), 'HH:mm')}`
@@ -310,7 +311,7 @@ export default function DashboardPage() {
              <CardHeader>
                <CardTitle>Connecter WhatsApp</CardTitle>
                <CardDescription>
-                 {isRestaurant ? 'Votre serveur IA est-il actif ?' : isImmobilier ? 'Votre agent commercial IA est-il actif ?' : 'Votre réceptionniste IA est-elle active ?'}
+                 {isRestaurant ? 'Votre serveur IA est-il actif ?' : isImmobilier ? 'Votre agent commercial IA est-il actif ?' : isMedical ? 'Votre réceptionniste IA est-elle active ?' : 'Votre assistant IA est-il actif ?'}
                </CardDescription>
              </CardHeader>
              <CardContent className="space-y-4">
