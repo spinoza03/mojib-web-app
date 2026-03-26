@@ -16,12 +16,9 @@ const NICHE_CONFIG: Record<NicheType, { label: string; icon: any; active: boolea
   centre_formation: { label: '🎓 Centre Formation', icon: GraduationCap, active: false },
 };
 
-const navItems: Array<{ icon: any; label: string | ((niche?: string) => string); path: string; feature: FeatureName }> = [
+const navItems: Array<{ icon: any; label: string; path: string; feature: FeatureName }> = [
   { icon: Home, label: 'Tableau de Bord', path: '/dashboard', feature: 'dashboard' },
-  { icon: Users, label: (niche) => {
-    const medical = ['dentistry', 'doctor', 'beauty_center'].includes(niche || '');
-    return medical ? 'Patients (CRM)' : 'Clients (CRM)';
-  }, path: '/crm', feature: 'crm' },
+  { icon: Users, label: 'Patients (CRM)', path: '/crm', feature: 'crm' },
   { icon: PieChart, label: 'Finances & Marge', path: '/finance', feature: 'finance' },
   { icon: Calendar, label: 'Gérer Rendez-vous', path: '/appointments', feature: 'calendar-sync' },
   { icon: Smartphone, label: 'Connecter WhatsApp', path: '/connect', feature: 'chat' },
@@ -48,11 +45,9 @@ export function Sidebar() {
     window.location.href = '/auth';
   };
 
-  const isMedical = ['dentistry', 'doctor', 'beauty_center'].includes(profile?.niche || '');
-
   const userInitials = profile?.clinic_name
     ? profile.clinic_name.substring(0, 2).toUpperCase()
-    : 'AI';
+    : 'DR';
 
   const getTrialDaysLeft = (trialEndsAt?: string | null) => {
     if (!trialEndsAt) return 0;
@@ -162,7 +157,7 @@ export function Sidebar() {
                     isActive && 'scale-110'
                   )}
                 />
-                <span className="font-medium">{typeof item.label === 'function' ? item.label(profile?.niche) : item.label}</span>
+                <span className="font-medium">{item.label}</span>
                 {isActive && (
                   <motion.div
                     layoutId="activeIndicator"
@@ -209,7 +204,7 @@ export function Sidebar() {
             </Avatar>
 
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{profile?.clinic_name || (isMedical ? 'Ma Clinique' : isImmobilier ? 'Mon Agence' : isRestaurant ? 'Mon Restaurant' : 'Mon Entreprise')}</p>
+              <p className="text-sm font-medium truncate">{profile?.clinic_name || 'Ma Clinique'}</p>
               <p className="text-xs text-muted-foreground truncate">
                 {isAdmin ? 'Superadmin' : 'Compte Client'}
               </p>

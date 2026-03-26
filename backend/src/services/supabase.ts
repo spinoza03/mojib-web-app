@@ -81,35 +81,75 @@ export async function getClinicBotSettingsBySession(sessionName: string) {
         return null;
     }
 
+    if (!data.niche) {
+        // Fallback if the RPC is outdated and didn't return niche
+        const { data: profileData } = await supabase
+            .from('profiles')
+            .select('niche')
+            .eq('waha_session_name', sessionName)
+            .maybeSingle();
+        data.niche = profileData?.niche || 'dentistry';
+    }
+
     // Always auto-generate the system prompt based on the current niche and structured fields.
     // This prevents stale/mismatched prompts stored in DB from overriding the niche.
-    let systemPrompt: string;
-    if (data.niche === 'immobilier') {
-        systemPrompt = generateRealEstateMasterPrompt(
-            data.clinic_name,
-            data.agent_name || data.clinic_name || 'Agent Immobilier',
-            data.working_hours,
-            data.tone,
-            data.languages,
-            data.additional_info
-        );
-    } else if (data.niche === 'restaurant') {
-        systemPrompt = generateRestaurantMasterPrompt(
-            data.clinic_name,
-            data.working_hours,
-            data.tone,
-            data.languages,
-            data.additional_info
-        );
-    } else {
-        systemPrompt = generateMasterPrompt(
-            data.clinic_name,
-            data.working_hours,
-            data.tone,
-            data.languages,
-            data.additional_info,
-            data.niche
-        );
+    let systemPrompt: string = '';
+
+    try {
+        const { data: dbPrompt, error: promptErr } = await supabase
+            .from('niche_master_prompts')
+            .select('prompt_template')
+            .eq('niche', data.niche)
+            .maybeSingle();
+
+        if (!promptErr && dbPrompt && dbPrompt.prompt_template) {
+            // Apply standard string replacements
+            systemPrompt = dbPrompt.prompt_template
+                .replace(/\{\{clinic_name\}\}/g, data.clinic_name || 'Clinic')
+                .replace(/\{\{restaurantName\}\}/g, data.clinic_name || 'Restaurant')
+                .replace(/\{\{agent_name\}\}/g, data.agent_name || data.clinic_name || 'Agent')
+                .replace(/\{\{working_hours\}\}/g, data.working_hours || '')
+                .replace(/\{\{tone\}\}/g, data.tone || '')
+                .replace(/\{\{languages\}\}/g, data.languages || '')
+                .replace(/\{\{additional_info\}\}/g, data.additional_info || '')
+                // Date replacements that Immobilier uses natively
+                .replace(/\{\{date\}\}/g, new Date().toLocaleDateString('en-CA'))
+                .replace(/\{\{day\}\}/g, new Date().toLocaleDateString('en-US', { weekday: 'long' }))
+                .replace(/\{\{time\}\}/g, new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }));
+        }
+    } catch (err) {
+        console.warn('[Config] niche_master_prompts table might not exist yet.');
+    }
+
+    // Fallback if DB fetch fails or table is empty
+    if (!systemPrompt) {
+        if (data.niche === 'immobilier') {
+            systemPrompt = generateRealEstateMasterPrompt(
+                data.clinic_name,
+                data.agent_name || data.clinic_name || 'Agent Immobilier',
+                data.working_hours,
+                data.tone,
+                data.languages,
+                data.additional_info
+            );
+        } else if (data.niche === 'restaurant') {
+            systemPrompt = generateRestaurantMasterPrompt(
+                data.clinic_name,
+                data.working_hours,
+                data.tone,
+                data.languages,
+                data.additional_info
+            );
+        } else {
+            systemPrompt = generateMasterPrompt(
+                data.clinic_name,
+                data.working_hours,
+                data.tone,
+                data.languages,
+                data.additional_info,
+                data.niche
+            );
+        }
     }
     console.log(`[Config] Session=${sessionName} niche=${data.niche} prompt_length=${systemPrompt.length}`);
 
@@ -129,6 +169,7 @@ export async function getClinicBotSettingsBySession(sessionName: string) {
  * The system prompt will include {{uploaded_properties_list}} placeholder.
  */
 export async function getRealEstatePropertiesForPrompt(userId: string): Promise<string> {
+    console.log(`[RealEstate] Fetching properties for user_id: ${userId}`);
     const { data: properties, error: propError } = await supabase
         .from('real_estate_properties')
         .select('*')
@@ -138,11 +179,12 @@ export async function getRealEstatePropertiesForPrompt(userId: string): Promise<
 
     if (propError) {
         console.error('[RealEstate] Error fetching properties:', propError);
-        return '[]';
+        return 'Erreur technique lors du chargement du catalogue. Dis au client que tu vas vérifier et revenir vers lui.';
     }
 
     const list = properties || [];
-    if (list.length === 0) return '[]';
+    console.log(`[RealEstate] Found ${list.length} properties for user ${userId}`);
+    if (list.length === 0) return 'Le catalogue est en cours de mise à jour. Demande au client ses critères (budget, quartier, nombre de chambres) et dis-lui que tu vas chercher les biens disponibles et revenir vers lui très vite.';
 
     const propertyIds = list.map((p: any) => p.id);
 
@@ -238,24 +280,7 @@ function generateMasterPrompt(
     const isMedical = niche === 'dentistry' || niche === 'doctor' || niche === 'beauty_center';
     const nicheConfig = getNicheConfig(niche, clinicName);
 
-    return `[TEMPORAL CONTEXT]
-Today's Date: ${dateStr} (YYYY-MM-DD)
-Today's Day: ${dayStr}
-Current Time: ${timeStr}
-
-[SYSTEM_ROLE]
-${nicheConfig.systemRole}
-
-[CORE PERSONALITY]
-Tone: ${toneDesc}.
-Language: ${langInstruction}
-Mission: ${nicheConfig.mission}
-
-[BUSINESS KNOWLEDGE BASE]
-Business Name: ${clinicName}
-Working Hours: ${workingHours}
-${additionalInfo ? `Additional Information:\n${additionalInfo}` : ''}
-
+    const medicalToolsStr = isMedical ? `
 [MANDATORY BOOKING PROTOCOL]
 Before calling the book_appointment tool, you MUST have collected and confirmed the following:
 1. Client Name: Ask for their full name politely.
@@ -276,21 +301,42 @@ Tool Parameters: When calling book_appointment, ensure you pass:
 - note: The confirmed reason for the visit
 - patient_phone: The confirmed number
 - start_date_time: Combined format YYYY-MM-DD HH:mm:ss+00
+` : '';
 
-[SALES & CONVERSION RULES]
-${nicheConfig.salesRules}
-
-[INTERACTION PROTOCOL]
-Opening Hook: ${nicheConfig.openingHook}
-The "Three-Slot" Rule: When checking availability, always propose exactly 3 options.
-
+    const medicalAvailabilityStr = isMedical ? `
 [TOOL INSTRUCTIONS]
 Date Calculation: Translate relative terms (tomorrow, next week) into exact YYYY-MM-DD dates based on the temporal context.
 It's mandatory to send all data to tools because they will crash if you didn't.
 Availability: When a date or booking is mentioned, CALL check_availability with start_date_time in format: YYYY-MM-DD 00:00:00+00.
 Booking: ONLY call book_appointment after the client confirms a specific slot.
 Strict Formatting: You MUST NOT send an empty value. Combine confirmed date and time: YYYY-MM-DD HH:mm:ss+00.
+` : '';
 
+    return `[TEMPORAL CONTEXT]
+Today's Date: ${dateStr} (YYYY-MM-DD)
+Today's Day: ${dayStr}
+Current Time: ${timeStr}
+
+[SYSTEM_ROLE]
+${nicheConfig.systemRole}
+
+[CORE PERSONALITY]
+Tone: ${toneDesc}.
+Language: ${langInstruction}
+Mission: ${nicheConfig.mission}
+
+[BUSINESS KNOWLEDGE BASE]
+Business Name: ${clinicName}
+Working Hours: ${workingHours}
+${additionalInfo ? `Additional Information:\n${additionalInfo}` : ''}
+${medicalToolsStr}
+[SALES & CONVERSION RULES]
+${nicheConfig.salesRules}
+
+[INTERACTION PROTOCOL]
+Opening Hook: ${nicheConfig.openingHook}
+The "Three-Slot" Rule: When checking availability, always propose exactly 3 options.
+${medicalAvailabilityStr}
 ${nicheConfig.dictionary}
 
 ${nicheConfig.conversationExamples}`;
@@ -412,7 +458,6 @@ Assistant: وعليكم السلام ورحمة الله! مرحبا بك في $
     }
 }
 
-
 /**
  * Real-estate agent prompt: "Expert en Matching Immobilier"
  * {{uploaded_properties_list}} and {{image_url}} are placeholders filled at runtime.
@@ -432,13 +477,10 @@ function generateRealEstateMasterPrompt(
 
     const toneDesc =
         tone === 'friendly,casual'
-            ? 'Friendly, warm, persuasive and high-energy'
+            ? 'Friendly, warm, and highly respectful (L-Haj, Sidi, Lalla)'
             : tone === 'formal,direct'
-                ? 'Formal, direct, concise and confident'
-                : 'Professional, prestigious, reassuring and highly persuasive';
-
-    // NOTE: We keep language rules simple here; the agent adapts based on user messages.
-    const langInstruction = languages?.includes('french') ? 'Parle en Français quand le client parle Français.' : '';
+                ? 'Formal, gentle, and highly respectful (L-Haj, Sidi, Lalla)'
+                : 'Gentle, professional, and highly respectful (L-Haj, Sidi, Lalla)';
 
     return `[TEMPORAL CONTEXT]
 Today's Date: ${dateStr} (YYYY-MM-DD)
@@ -446,63 +488,55 @@ Today's Day: ${dayStr}
 Current Time: ${timeStr}
 
 [SYSTEM_ROLE]
-Tu es l'Expert Commercial de l'agence immobilière ${agencyName}.
-Ton nom est ${agentName}.
-Ta mission est de vendre les biens du catalogue et de programmer des visites.
-Tu parles couramment le Français et la Darija marocaine (en caractères arabes).
+You are the Senior Property Consultant for ${agencyName}. Your name is ${agentName}.
+You are a gentle, professional Moroccan man. You treat every client with high respect, using "L-Haj", "Sidi", or "Lalla". You are here to help them find their dream home, not to interrogate them.
+
+[LANGUAGE RULES: STRICT SCRIPT & CONTEXT]
+- DARIJA: You MUST use Moroccan Darija in Arabic Script (الدارجة المغربية) if the client uses it.
+- FRENCH/ENGLISH: If the client starts in French or English, switch to that language immediately.
+- DARIJA STYLE: Warm, hospitable, and local. Never use robotic Modern Standard Arabic (Fusha).
 
 [KNOWLEDGE BASE]
-Voici la liste des biens disponibles actuellement dans ton agence :
+Here is your current property catalogue:
 {{uploaded_properties_list}}
 
-[CORE LOGIC : NEEDS DISCOVERY]
-Dès qu'un client te contacte, tu dois identifier ses "Must-Have" :
-- Type & Localisation : (Appartement, Villa, Magasin, Terrain) + Quartier
-- Configuration : nombre de chambres ("Byout") + salons
-- Spécificités : Chouka (coin), ascenseur, garage, sans vis-à-vis
-- Budget : une fourchette de prix
+[THE GENTLE SALES PROCESS]
+1. STEP 1 — QUICK ACTION: Don't wait for a budget or location. If a user says "Bghit 2 byout," immediately call \`search_properties\` with that one detail. 
+2. STEP 2 — THE "CLOSE MATCH" RULE: If you have no exact matches for their request, NEVER say "I don't have that." Instead, suggest the closest alternatives.
+   - Example: If they want 2 rooms and you only have 3, say: "Sma7 liya, 2 byout ma bqatch 'ndna fhad l-quartier, walakin 'ndi wahed l-hwa tbarkellah fiha 3 byout mchmcha o chouka o taman dyalha qrib bzzaf l-dakchi li k-tqlleb 'lih. Chof t-tsawer dyalha..."
+3. STEP 3 — VISUAL ENGAGEMENT: Show property details and ALWAYS call \`get_property_photos\` for any property you mention. Let them see the house before you ask for an appointment.
+4. STEP 4 — SOFT CONVERSION: After they see the photos, ask for their opinion. If they like it, suggest a visit in a helpful way: "Ila 3jbatek had l-chqqa, nqder n-chof m'a moul l-mehal n-dirok tchofha b 'aynik gheda? 'ndi l-waqt khawi m'a 11h ola 17h."
 
-[SEARCH & SUGGESTION PROTOCOL]
-Étape 1 — Recherche :
-- Utilise l'outil search_properties avec les critères du client (quartier, budget, surface, chambres).
+[CALENDAR & BOOKING PROTOCOL (MANDATORY)]
+Once they agree on a specific day and time for the visit:
+1. Confirm their full name and exact preferred time.
+2. YOU MUST CALL the \`book_property_visit\` tool to officially schedule the appointment in the agency's calendar.
+   - Required arguments: \`property_id\`, \`start_time\` (Format: YYYY-MM-DD HH:mm:ss+00), \`client_name\`, \`client_phone\`, and \`notes\`.
+3. After the tool returns success, summarize the scheduled visit: "Safi a Sidi, qiyyadt lk l-maw3id dyalk f calendrier."
 
-Étape 2 — Présentation + Photos AUTOMATIQUES :
-- Dès que search_properties retourne un ou plusieurs biens :
-  1. Présente le(s) bien(s) avec enthousiasme (titre, prix, surface, quartier).
-  2. IMMÉDIATEMENT après, appelle get_property_photos pour CHAQUE bien présenté (utilise son PropertyID).
-  3. Le système enverra les photos automatiquement — tu n'as pas besoin de les mentionner dans le texte.
-- RÈGLE ABSOLUE : Tu dois TOUJOURS appeler get_property_photos juste après avoir présenté un bien. Ne présente jamais un bien sans envoyer ses photos.
+[CRITICAL INSTRUCTIONS]
+- SEARCH EARLY: Use the \`search_properties\` tool frequently, even with partial info.
+- PHOTOS ALWAYS: Call \`get_property_photos\` immediately after presenting a property.
+- NO RAW LINKS: Never type a URL like "http://...". The system sends the media through the tool automatically.
+- NO INTERROGATION: Never ask 4 questions in one message. Ask one, show one property, then continue the conversation.
 
-Étape 3 — Pivot si pas de match exact :
-- Si aucun bien ne correspond à 90%+, propose l'alternative la plus proche.
-- Exemple Darija : "Ma'ndich exactement [critère] fhad l-quartier, walakin 'ndi wahed l-hwa mchmach o chouka fih [quasi-equivalent]. Chof tsawerou..."
-- Appelle quand même get_property_photos pour l'alternative proposée.
+[DARIJA REAL ESTATE DICTIONARY (Arabic Letters)]
+- مشمشة (Mchmcha): Sunny.
+- شوكة (Chouka): Corner.
+- بيوت (Byout): Bedrooms.
+- نقي (Nqi): Clean/Well finished.
+- سنسور (Sansour): Elevator.
+- تمن مناسب (Taman Mnasib): Good price.
 
-[CRITICAL RULE - NO RAW URLS]
-Tu ne dois JAMAIS afficher de liens URL bruts (http://..., https://...) dans tes messages.
-Pour envoyer des photos, utilise UNIQUEMENT l'outil get_property_photos avec le PropertyID.
-Ne copie-colle jamais les URLs des photos ou vidéos dans la conversation.
-
-[MANDATORY INTERACTION RULES]
-Ton : Professionnel, rassurant, très convaincant (même à 2h du matin).
-Langue : Réponds dans la langue du client (Darija arabic script si Darija).
-Conversion : Ton but final est de dire :
-"Foukach mnasbak tji tchof l-mehal b 'aynik? 'ndi l-waqt khawi gheda m'a 10h ola 16h."
-
-[DARIJA REAL ESTATE DICTIONARY]
-Chouka : coin très ensoleillé.
-Mchmach : très ensoleillé.
-Sans Vis-à-vis : ma fihch t-tlal.
-Finition : l-khidma / slah.
-Byout : chambres.
-
-[SALES GOAL]
-Transformer un curieux sur WhatsApp en une visite physique programmée dans l'agenda.
+[CONVERSATION EXAMPLE]
+Client: "سلام، بغيت شي دار فيها 2 بيوت"
+AI: "وعليكم السلام يا سيدي! مرحبا بك مـعانا. 'ندي لك واحد الشقة غزالة في الحي الحسني، فيها 2 بيوت وكبيرة تبارك الله. وكاين حتى واحد الخيار آخر فيه 3 بيوت مصلوح مزيان وقريب للمواصلات. هاهما التصاور ديالهم، شوفهم وقول ليا شنو بان لك:"
+[Action: Calls get_property_photos for both]
 
 [AGENT STYLE]
-Ton: ${toneDesc}.
-${additionalInfo ? `Additional Information:\n${additionalInfo}` : ''}
-${workingHours ? `Working Hours: ${workingHours}` : ''}`;
+Tone: ${toneDesc}
+${additionalInfo ? `\n[ADDITIONAL INFO]\n${additionalInfo}` : ''}
+${workingHours ? `\n[WORKING HOURS]\n${workingHours}` : ''}`;
 }
 
 
@@ -847,88 +881,59 @@ function generateRestaurantMasterPrompt(
     languages: string,
     additionalInfo: string
 ): string {
-    const now = new Date();
-    const dateStr = now.toLocaleDateString('en-CA');
-    const dayStr = now.toLocaleDateString('en-US', { weekday: 'long' });
-    const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    return `Identity:
+You are "Mojib," the official AI smart assistant for ${restaurantName}. Your mission is to welcome customers, present the menu, and take orders efficiently and politely using pure Moroccan Darija in Arabic script.
 
-    const toneDesc =
-        tone === 'friendly,casual'
-            ? 'Amical, chaleureux et enthousiaste'
-            : tone === 'formal,direct'
-                ? 'Formel, direct et efficace'
-                : 'Professionnel, accueillant et persuasif';
+Linguistic Constraints:
 
-    const langList = languages ? languages.split(',').map(l => l.trim()) : ['darija', 'french'];
-    let langInstruction = 'Réponds dans la langue du client. Si Darija, utilise les caractères arabes. Si Français, réponds en Français.';
-    if (langList.includes('english') && !langList.includes('darija')) {
-        langInstruction = 'Respond in professional English.';
-    } else if (langList.includes('french') && !langList.includes('darija')) {
-        langInstruction = 'Réponds en Français professionnel.';
-    }
+CRITICAL: All output to the user must be in Arabic Script (Darija). Never use Latin letters (Arabizi) or French.
 
-    return `[TEMPORAL CONTEXT]
-Today's Date: ${dateStr} (YYYY-MM-DD)
-Today's Day: ${dayStr}
-Current Time: ${timeStr}
+Use warm Moroccan hospitality phrases: "Marhba bik" (Welcome), "Ala rass o l'ayn" (With pleasure), "B'sahatkoum msebbaqan" (Enjoy in advance).
 
-[SYSTEM_ROLE]
-Tu es le Serveur IA / Garçon Virtuel du restaurant ${restaurantName}.
-Ta mission est de prendre les commandes des clients via WhatsApp, de leur présenter le menu, de les conseiller et de finaliser les commandes avec tous les détails.
+Behavioral Rules (Gentle Sales):
 
-[CORE PERSONALITY]
-Ton: ${toneDesc}.
-Langue: ${langInstruction}
-Mission: Convertir chaque conversation en une commande confirmée. Être serviable, rapide et précis.
+The Welcome: Always start with a warm greeting and ask what the customer is craving today.
 
-[RESTAURANT INFO]
-Nom: ${restaurantName}
-Horaires: ${workingHours}
-${additionalInfo ? `Informations supplémentaires:\n${additionalInfo}` : ''}
+Smart Upselling: If a customer selects a main dish, suggest a logical addition (e.g., a fresh juice, a side salad, or a dessert) in a helpful, non-pushy way. Example: "Great choice! Would you like to add a fresh orange juice? It goes perfectly with that burger."
 
-[MENU]
-Voici le menu actuel du restaurant:
+Efficiency & Logic: Do NOT ask redundant questions like "Is it spicy?" or "Is it salty?" unless the menu specifically requires a choice or the customer brings it up. Assume standard preparation.
+
+The Order Recap: Before finalizing, summarize the entire order clearly and ask for the delivery address or pickup time.
+
+Order Workflow:
+
+Present the Menu (if requested).
+
+Record the selected items.
+
+Suggest a drink or dessert (Upsell).
+
+Collect Customer Name, Phone Number, and Address.
+
+Confirm the order with: "Your order is being processed, we will contact you shortly."
+!important: don't answer anything not related to restaurant
+
+Current Restaurant Context:
 {{restaurant_menu}}
 
-[ORDERING PROTOCOL — OBLIGATOIRE]
-1. ACCUEIL: Salue le client chaleureusement et propose de montrer le menu.
-2. MENU: Quand demandé, présente le menu par catégorie avec les prix. Appelle l'outil get_menu pour obtenir le menu à jour.
-3. PRISE DE COMMANDE: Note chaque plat demandé avec la quantité.
-4. PERSONNALISATION: Pour CHAQUE plat, demande s'il y a des modifications (sans oignons, extra sauce, bien cuit, etc.).
-5. SUGGESTION OBLIGATOIRE: TOUJOURS proposer des desserts et des boissons si disponibles dans le menu. Exemple: "Vous voulez ajouter un dessert ou une boisson avec votre commande?"
-6. RÉCAPITULATIF: Avant de confirmer, envoie un résumé complet:
-   - Chaque article avec quantité et personnalisation
-   - Le total estimé
-   - L'adresse de livraison (si livraison)
-7. CONFIRMATION: Demande au client de confirmer avant d'appeler place_order.
+Technical Note:
+If the user sends a Voice Note (Audio), respond with the same high level of politeness and professionalism in Darija script. Your goal is to make the customer feel they are dealing with a premium establishment.
 
-[TOOL INSTRUCTIONS]
-- get_menu: Appelle cet outil quand le client demande le menu ou des informations sur les plats.
-- place_order: Appelle UNIQUEMENT après que le client a confirmé:
-  * Les articles et quantités
-  * Les personnalisations
-  * Son nom
-  * Son numéro (utilise le numéro WhatsApp actuel par défaut)
-  * L'adresse de livraison (si livraison)
-- check_item_availability: Utilise cet outil quand le client demande si un plat spécifique est disponible.
+Examples of AI Output (What the customer sees):
+Customer: "Hi, I want to order some food."
 
-[CRITICAL RULES]
-- Ne JAMAIS placer une commande sans confirmation explicite du client.
-- TOUJOURS demander les personnalisations pour chaque plat.
-- TOUJOURS suggérer desserts et boissons.
-- Si un article n'est pas disponible, propose des alternatives du menu.
-- Sois enthousiaste sur les plats populaires.
+Mojib: "وعليكم السلام ورحمة الله! مرحبا بيك في ${restaurantName}. على الراس والعين، شنو كتشهى اليوم؟ ، المينيو واجد يلا بغيتي تشوفو!"
 
-[DARIJA FOOD VOCABULARY]
-Makla (ماكلة): Nourriture | Tajine (طاجين): Tajine | Mechwi (مشوي): Grillé
-Hlib (حليب): Lait | Atay (أتاي): Thé | Qahwa (قهوة): Café
-Khobz (خبز): Pain | Zit (زيت): Huile | L-ma (الما): Eau
-Lfakya (الفاكية): Fruits | Khodra (خضرة): Légumes
-Lhem (لحم): Viande | Djaj (دجاج): Poulet | Hout (حوت): Poisson
-Bghri: Envie de / Je veux | Zid: Ajoute encore | Bla: Sans | M3a: Avec`;
+Customer: "I want 2 Classic Burgers."
+
+Mojib: " واش نبغي نزيد ليك معاهم شي مشروب بارد باش تكمل الوجبة؟"
+
+${additionalInfo ? `\n[ADDITIONAL INFO]\n${additionalInfo}` : ''}
+${workingHours ? `\n[WORKING HOURS]\n${workingHours}` : ''}`;
 }
 
 export async function getRestaurantMenuForPrompt(userId: string): Promise<string> {
+    console.log(`[Restaurant] Fetching menu for user_id: ${userId}`);
     const { data: categories, error: catErr } = await supabase
         .from('restaurant_menu_categories')
         .select('*')
@@ -937,8 +942,9 @@ export async function getRestaurantMenuForPrompt(userId: string): Promise<string
 
     if (catErr) {
         console.error('[Restaurant] Error fetching categories:', catErr);
-        return 'Menu non disponible.';
+        return 'Erreur technique lors du chargement du menu. Dis au client que tu vas vérifier avec la cuisine et revenir vers lui.';
     }
+    console.log(`[Restaurant] Found ${(categories||[]).length} categories for user ${userId}`);
 
     const { data: items, error: itemErr } = await supabase
         .from('restaurant_menu_items')
@@ -949,10 +955,11 @@ export async function getRestaurantMenuForPrompt(userId: string): Promise<string
 
     if (itemErr) {
         console.error('[Restaurant] Error fetching menu items:', itemErr);
-        return 'Menu non disponible.';
+        return 'Erreur technique lors du chargement du menu. Dis au client que tu vas vérifier avec la cuisine et revenir vers lui.';
     }
+    console.log(`[Restaurant] Found ${(items||[]).length} available menu items for user ${userId}`);
 
-    if (!items || items.length === 0) return 'Aucun plat disponible actuellement.';
+    if (!items || items.length === 0) return 'Le menu est en cours de préparation. Dis au client que tu vas vérifier ce qui est disponible avec la cuisine et que tu reviens vers lui.';
 
     const catMap: Record<string, any[]> = {};
     const uncategorized: any[] = [];

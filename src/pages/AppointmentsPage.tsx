@@ -50,17 +50,11 @@ export default function AppointmentsPage() {
   const { toast } = useToast();
   const { user, profile } = useAuth();
   const isImmobilier = profile?.niche === 'immobilier';
-  const isRestaurant = profile?.niche === 'restaurant';
-  const isMedical = ['dentistry', 'doctor', 'beauty_center'].includes(profile?.niche || '');
 
   // Niche-aware labels (DB columns stay the same)
   const labels = isImmobilier
     ? { personName: 'Nom du client', phonePlaceholder: '+212...', notesLabel: 'Notes', notesPlaceholder: 'Motif de la visite...', pageTitle: 'Rendez-vous', pageDesc: 'Gérez vos visites immobilières.', bookBtn: 'Nouveau RDV', newTitle: 'Nouveau Rendez-vous', editTitle: 'Modifier le Rendez-vous', namePlaceholder: 'ex. Youssef El Amrani' }
-    : isRestaurant
-      ? { personName: 'Nom du client', phonePlaceholder: '+212...', notesLabel: 'Notes', notesPlaceholder: 'Détails de la réservation...', pageTitle: 'Réservations', pageDesc: 'Gérez les réservations de votre restaurant.', bookBtn: 'Nouvelle Réservation', newTitle: 'Nouvelle Réservation', editTitle: 'Modifier la Réservation', namePlaceholder: 'ex. Karim Benali' }
-      : isMedical
-        ? { personName: 'Nom du patient', phonePlaceholder: '+212...', notesLabel: 'Notes', notesPlaceholder: 'Motif de la consultation...', pageTitle: 'Rendez-vous', pageDesc: 'Gérez le planning de votre clinique.', bookBtn: 'Nouveau RDV', newTitle: 'Nouveau Rendez-vous', editTitle: 'Modifier le Rendez-vous', namePlaceholder: 'ex. Sara Ahmed' }
-        : { personName: 'Nom du client', phonePlaceholder: '+212...', notesLabel: 'Notes', notesPlaceholder: 'Motif du rendez-vous...', pageTitle: 'Rendez-vous', pageDesc: 'Gérez vos rendez-vous.', bookBtn: 'Nouveau RDV', newTitle: 'Nouveau Rendez-vous', editTitle: 'Modifier le Rendez-vous', namePlaceholder: 'ex. Youssef El Amrani' };
+    : { personName: 'Patient Name', phonePlaceholder: '+212...', notesLabel: 'Notes', notesPlaceholder: 'Reason for visit...', pageTitle: 'Appointments', pageDesc: "Manage your clinic's schedule.", bookBtn: 'Manual Booking', newTitle: 'New Appointment', editTitle: 'Modify Appointment', namePlaceholder: 'e.g. Sara Ahmed' };
   const queryClient = useQueryClient();
   
   // State for View Dialog

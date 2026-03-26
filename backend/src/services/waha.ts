@@ -30,33 +30,26 @@ export async function sendText(chatId: string, text: string, sessionName?: strin
     }
 }
 
-export async function sendMedia(
-    chatId: string,
-    mediaUrl: string,
-    mediaType: 'image' | 'video' = 'image',
-    sessionName?: string,
-    caption?: string
-) {
-    try {
-        await client.post('/api/sendMedia', {
-            session: sessionName || WAHA_SESSION,
-            chatId: chatId,
-            mediaUrl: mediaUrl,
-            mediaType,
-            caption: caption || ''
-        });
-    } catch (error) {
-        console.error(`[WAHA] Error sending media (${mediaType}) to ${chatId}:`, error);
-    }
-}
-
 export async function sendImage(
     chatId: string,
     imageUrl: string,
     sessionName?: string,
     caption?: string
 ) {
-    await sendMedia(chatId, imageUrl, 'image', sessionName, caption);
+    try {
+        await client.post('/api/sendImage', {
+            session: sessionName || WAHA_SESSION,
+            chatId: chatId,
+            file: {
+                mimetype: "image/jpeg",
+                url: imageUrl,
+                filename: "property.jpg"
+            },
+            caption: caption || ''
+        });
+    } catch (error) {
+        console.error(`[WAHA] Error sending image to ${chatId}:`, error);
+    }
 }
 
 export async function startTyping(chatId: string, sessionName?: string) {
@@ -98,18 +91,32 @@ export async function sendBulkText(chatIds: string[], text: string, sessionName?
     return { sent, failed };
 }
 
-export async function downloadMedia(sessionName: string, messageId: string, extension: string = 'ogg'): Promise<{ buffer: Buffer | null, filepath?: string }> {
+export async function downloadMedia(sessionName: string, mediaUrl: string, extension: string = 'ogg'): Promise<{ buffer: Buffer | null, filepath?: string }> {
     try {
-        console.log(`[WAHA] Downloading media for message ${messageId} in session ${sessionName}...`);
+        let downloadUrl = mediaUrl;
+        
+        // Force HTTPS
+        if (downloadUrl.startsWith('http://')) {
+            downloadUrl = downloadUrl.replace('http://', 'https://');
+        }
+        
+        // If it's a relative path, prepend the WAHA base URL
+        if (downloadUrl.startsWith('/')) {
+            downloadUrl = `${WAHA_API_URL}${downloadUrl}`;
+        }
+        
+        console.log(`[WAHA] Downloading media from ${downloadUrl} in session ${sessionName}...`);
+        
+        // Use raw axios (NOT client) for absolute URLs to avoid double-prefixing from baseURL
+        const isAbsoluteUrl = downloadUrl.startsWith('http://') || downloadUrl.startsWith('https://');
         let response;
-        const url1 = `/api/${sessionName}/messages/${encodeURIComponent(messageId)}/download`;
-        const url2 = `/api/sessions/${sessionName}/messages/${encodeURIComponent(messageId)}/download`;
-        try {
-            console.log(`[WAHA] Trying URL: ${url1}`);
-            response = await client.get(url1, { responseType: 'arraybuffer' });
-        } catch(e1: any) {
-            console.log(`[WAHA] First URL failed (${e1?.response?.status || e1.message}), trying fallback: ${url2}`);
-            response = await client.get(url2, { responseType: 'arraybuffer' });
+        if (isAbsoluteUrl) {
+            response = await axios.get(downloadUrl, {
+                responseType: 'arraybuffer',
+                headers: { 'X-Api-Key': WAHA_API_KEY }
+            });
+        } else {
+            response = await client.get(downloadUrl, { responseType: 'arraybuffer' });
         }
 
         const buffer = Buffer.from(response.data);
@@ -118,7 +125,7 @@ export async function downloadMedia(sessionName: string, messageId: string, exte
             return { buffer: null };
         }
         console.log(`[WAHA] Media downloaded successfully: ${buffer.length} bytes`);
-        const tfp = path.join('/tmp', `waha_media_${messageId}.${extension}`);
+        const tfp = path.join('/tmp', `waha_media_${Date.now()}.${extension}`);
         fs.writeFileSync(tfp, buffer);
         console.log(`[WAHA] Media saved to ${tfp}`);
         return { buffer, filepath: tfp };

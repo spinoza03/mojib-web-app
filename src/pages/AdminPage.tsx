@@ -33,12 +33,19 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '@/components/ui/select';
+import {
+	Tabs,
+	TabsContent,
+	TabsList,
+	TabsTrigger,
+} from '@/components/ui/tabs';
 import { fetchAdminStats, fetchAllClinics, type ClinicWithEmail } from '@/services/api';
+import { AdminPromptsManagement } from '@/components/admin/AdminPromptsManagement';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase, supabaseAdmin } from '@/integrations/supabase/client';
-import { DollarSign, Calendar, Loader2, Trash2, Users, Settings2, UserPlus, Bot, Wifi, Play } from 'lucide-react';
+import { DollarSign, Calendar, Loader2, Trash2, Users, Settings2, UserPlus, Bot, Wifi, Play, Wrench } from 'lucide-react';
 import { addDays, isAfter } from 'date-fns';
 
 const WAHA_URL = 'https://waha.mojib.online';
@@ -600,8 +607,19 @@ export default function AdminPage() {
 					))}
 				</motion.div>
 
-				{/* Clinics Table */}
-				<motion.div
+				<Tabs defaultValue="users" className="w-full">
+					<TabsList className="grid w-full grid-cols-2 mb-8 glass-card border-primary/20 bg-background/50 h-14">
+						<TabsTrigger value="users" className="text-sm data-[state=active]:bg-primary/20 data-[state=active]:text-primary flex items-center justify-center gap-2 h-10 w-full pl-0">
+							<Users className="h-4 w-4" /> User Management
+						</TabsTrigger>
+						<TabsTrigger value="prompts" className="text-sm data-[state=active]:bg-primary/20 data-[state=active]:text-primary flex items-center gap-2 h-10">
+							<Wrench className="h-4 w-4" /> Master Prompts
+						</TabsTrigger>
+					</TabsList>
+
+					<TabsContent value="users" className="mt-0">
+						{/* Clinics Table */}
+						<motion.div
 					initial={{ opacity: 0, y: 20 }}
 					animate={{ opacity: 1, y: 0 }}
 					transition={{ delay: 0.3 }}
@@ -705,6 +723,12 @@ export default function AdminPage() {
 						</CardContent>
 					</Card>
 				</motion.div>
+					</TabsContent>
+
+					<TabsContent value="prompts" className="mt-0">
+						<AdminPromptsManagement />
+					</TabsContent>
+				</Tabs>
 			</div>
 
 			{/* ============================================ */}

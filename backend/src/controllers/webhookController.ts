@@ -14,9 +14,12 @@ import {
     placeRestaurantOrder,
     checkRestaurantItemAvailability
 } from '../services/supabase';
-import { generateResponse, generateDoctorResponse, transcribeAudio, DOCTOR_TOOLS, APPOINTMENT_TOOLS, REAL_ESTATE_TOOLS, RESTAURANT_TOOLS, getNicheTools } from '../services/openai';
+import { generateResponse, generateDoctorResponse, transcribeAudio, DOCTOR_TOOLS, REAL_ESTATE_TOOLS, RESTAURANT_TOOLS } from '../services/openai';
 import { sendText, startTyping, downloadMedia, sendImage } from '../services/waha';
 import OpenAI from 'openai';
+
+// Global map for debouncing AI responses across rapid webhook requests
+const aiResponseTimers = new Map<string, NodeJS.Timeout>();
 
 // Interface based on WAHA webhook payload structure
 interface WAMessage {
@@ -63,6 +66,7 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
         const phone_number = message.from;
         
         // 1. Fetch DB settings
+        let isDoctorBot = false;
         let config: any = null;
         let sessionName: string | undefined = undefined;
 
@@ -82,6 +86,9 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
                 res.status(200).send('Ignored: Subscription Expired');
                 return;
             }
+            // isDoctorBot is TRUE only for medical niches (dentistry, doctor, beauty_center)
+            const medicalNiches = ['dentistry', 'doctor', 'beauty_center'];
+            isDoctorBot = medicalNiches.includes(config.niche);
             sessionName = config.waha_session_name;
         } else {
             console.log(`[Unknown Session] No config found for session: ${payload.session}`);
@@ -89,21 +96,20 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
             return;
         }
 
-        // Determine the correct tool set for this niche
-        const nicheTools = getNicheTools(config.niche);
-
         const cooldown_seconds = config.cooldown_seconds || 60;
         let system_prompt = config.system_prompt;
 
         // Immobilier: inject the real-estate catalogue into the prompt
         if (config.niche === 'immobilier') {
             const propertiesBlock = await getRealEstatePropertiesForPrompt(config.user_id);
+            console.log(`[Webhook] Injecting RE catalogue for user ${config.user_id}: ${propertiesBlock.length} chars`);
             system_prompt = String(system_prompt || '').replace('{{uploaded_properties_list}}', propertiesBlock);
         }
 
         // Restaurant: inject the menu into the prompt
         if (config.niche === 'restaurant') {
             const menuBlock = await getRestaurantMenuForPrompt(config.user_id);
+            console.log(`[Webhook] Injecting restaurant menu for user ${config.user_id}: ${menuBlock.length} chars`);
             system_prompt = String(system_prompt || '').replace('{{restaurant_menu}}', menuBlock);
         }
 
@@ -161,8 +167,12 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
         const patientPhone = phone_number.split('@')[0];
 
         if (message.hasMedia || message._data?.type === 'ptt' || message._data?.type === 'audio' || message._data?.type === 'image') {
-            // Detect media type from multiple possible WAHA payload fields
-            const mediaType = message._data?.type || message.type;
+            let mediaType = message._data?.type || message.type;
+            if (!mediaType && message.media?.mimetype) {
+                if (message.media.mimetype.includes('image')) mediaType = 'image';
+                else if (message.media.mimetype.includes('audio')) mediaType = 'audio';
+                else if (message.media.mimetype.includes('video')) mediaType = 'video';
+            }
             console.log(`[Media] hasMedia=${message.hasMedia}, _data.type=${message._data?.type}, message.type=${message.type}, detected=${mediaType}`);
 
             // Extract message ID robustly
@@ -174,39 +184,42 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
             }
             console.log(`[Media] Extracted message ID: ${msgId}`);
 
-            if (mediaType === 'ptt' || mediaType === 'audio') {
-                console.log('[Media] Processing audio message...');
-                const mediaRes = await downloadMedia(sessionName || '', msgId, 'ogg');
-                if (mediaRes.filepath) {
-                    const transcription = await transcribeAudio(mediaRes.filepath);
-                    if (transcription) {
-                        textContent = transcription;
-                        console.log('[Media] Transcribed Audio:', textContent);
-                    } else {
-                        console.warn('[Media] Whisper transcription returned null');
+            const mediaUrl = message.media?.url;
+            if (!mediaUrl) {
+                console.error('[Media] No media URL provided in WAHA webhook payload, cannot download.');
+            } else {
+                if (mediaType === 'ptt' || mediaType === 'audio') {
+                    console.log(`[Media] Processing audio message from: ${mediaUrl}`);
+                    const mediaRes = await downloadMedia(sessionName || '', mediaUrl, 'ogg');
+                    if (mediaRes.filepath) {
+                        const transcription = await transcribeAudio(mediaRes.filepath);
+                        if (transcription) {
+                            textContent = transcription;
+                            console.log('[Media] Transcribed Audio:', textContent);
+                        } else {
+                            console.warn('[Media] Whisper transcription returned null');
+                        }
+                        // Always clean up temp file
+                        try { require('fs').unlinkSync(mediaRes.filepath); } catch(e) {}
                     }
-                    // Always clean up temp file
-                    try { require('fs').unlinkSync(mediaRes.filepath); } catch(e) {}
-                } else {
-                    console.error('[Media] Audio download failed — no filepath returned');
                 }
-            }
-            else if (mediaType === 'image') {
-                console.log('[Media] Processing image message...');
-                const mediaRes = await downloadMedia(sessionName || '', msgId, 'jpeg');
-                if (mediaRes.buffer && mediaRes.buffer.length > 0) {
-                    const b64 = mediaRes.buffer.toString('base64');
-                    imageUrl = `data:image/jpeg;base64,${b64}`;
-                    console.log(`[Media] Image converted to base64 successfully (${mediaRes.buffer.length} bytes)`);
-                } else {
-                    console.error(`[Media] Image download failed — buffer is ${mediaRes.buffer ? 'empty' : 'null'}`);
+                else if (mediaType === 'image') {
+                    console.log(`[Media] Processing image message from: ${mediaUrl}`);
+                    const mediaRes = await downloadMedia(sessionName || '', mediaUrl, 'jpeg');
+                    if (mediaRes.buffer && mediaRes.buffer.length > 0) {
+                        const b64 = mediaRes.buffer.toString('base64');
+                        imageUrl = `data:image/jpeg;base64,${b64}`;
+                        console.log(`[Media] Image converted to base64 successfully (${mediaRes.buffer.length} bytes)`);
+                    } else {
+                        console.error(`[Media] Image download failed — buffer is empty`);
+                    }
                 }
-            }
-            else if (mediaType === 'video') {
-                console.log('[Media] Received video message (Not supported by vision yet)');
-            }
-            else {
-                console.warn(`[Media] Unknown media type: ${mediaType}`);
+                else if (mediaType === 'video') {
+                    console.log('[Media] Received video message (Not supported by vision yet)');
+                }
+                else {
+                    console.warn(`[Media] Unknown media type: ${mediaType}`);
+                }
             }
         }
 
@@ -219,11 +232,31 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
         // Save incoming user message
         await saveMessage(phone_number, 'user', textContent, false, imageUrl);
 
-        // 4. Trigger typing effect
-        await startTyping(phone_number, sessionName);
+        // Send 'Queued' to WAHA instantly to avoid webhook timeout retries
+        res.status(200).send('Message saved, queued for AI');
 
-        // 5. Generate AI Response — unified for all niches
-        let aiMessage = await generateResponse(system_prompt, patientPhone, chatHistory, textContent, imageUrl, nicheTools);
+        // Debounce logic: wait 8 seconds before generating a response.
+        // If the user sends another message, this timer is cleared and restarted.
+        if (aiResponseTimers.has(phone_number)) {
+            clearTimeout(aiResponseTimers.get(phone_number)!);
+        }
+
+        const timerId = setTimeout(async () => {
+            aiResponseTimers.delete(phone_number);
+            try {
+                // 4. Trigger typing effect
+                await startTyping(phone_number, sessionName);
+
+                // 5. Generate AI Response
+                const isRealEstateBot = config.niche === 'immobilier';
+                const isRestaurantBot = config.niche === 'restaurant';
+        let aiMessage = await (isDoctorBot
+            ? generateDoctorResponse(system_prompt, patientPhone, chatHistory, textContent, imageUrl)
+            : isRealEstateBot
+                ? generateResponse(system_prompt, patientPhone, chatHistory, textContent, imageUrl, REAL_ESTATE_TOOLS)
+                : isRestaurantBot
+                    ? generateResponse(system_prompt, patientPhone, chatHistory, textContent, imageUrl, RESTAURANT_TOOLS)
+                    : generateResponse(system_prompt, patientPhone, chatHistory, textContent, imageUrl));
 
         if (!aiMessage) {
             res.status(500).send('Failed to generate AI response');
@@ -310,7 +343,8 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
                 else if (toolCall.function.name === 'get_menu') {
                     console.log(`[TOOL] Get Menu (${config.user_id})`);
                     const menuData = await getRestaurantMenuForPrompt(config.user_id);
-                    tempMessages.push({ role: "tool", tool_call_id: toolCall.id, content: JSON.stringify({ status: 'success', menu: menuData }) });
+                    console.log(`[TOOL] Menu data length: ${menuData.length} chars`);
+                    tempMessages.push({ role: "tool", tool_call_id: toolCall.id, content: menuData });
                 }
                 else if (toolCall.function.name === 'place_order') {
                     const args = JSON.parse(toolCall.function.arguments);
@@ -337,9 +371,9 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
             // Request a new completion with the tool results appended
             try {
                 const followUpResponse = await openaiClient.chat.completions.create({
-                    model: "gpt-4o-mini",
+                    model: "gpt-5.4-mini",
                     messages: tempMessages,
-                    tools: nicheTools
+                    tools: isRealEstateBot ? REAL_ESTATE_TOOLS : isRestaurantBot ? RESTAURANT_TOOLS : DOCTOR_TOOLS
                 });
                 finalResponseContent = followUpResponse.choices[0].message.content;
             } catch (err) {
@@ -363,9 +397,13 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
             // Save outgoing message
             await saveMessage(phone_number, 'assistant', finalResponseContent, true);
         }
-
-        res.status(200).send('Success');
+            } catch (err) {
+                console.error('[Debounced AI Error]', err);
+            }
+        }, 8000);
         
+        aiResponseTimers.set(phone_number, timerId);
+
     } catch (error) {
         console.error('[Webhook Error]', error);
         res.status(500).send('Internal Server Error');

@@ -1,11 +1,6 @@
 import { Request, Response } from 'express';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '../services/supabase';
 import { sendBulkText } from '../services/waha';
-
-const supabase = createClient(
-    process.env.SUPABASE_URL || '',
-    process.env.SUPABASE_SERVICE_KEY || ''
-);
 
 export const sendBulkMarketingHandler = async (req: Request, res: Response): Promise<void> => {
     try {
