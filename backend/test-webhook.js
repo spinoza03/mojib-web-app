@@ -10,7 +10,7 @@ async function sendTestMessage() {
             timestamp: Date.now() / 1000,
             from: "21277777777@c.us", // The patient number
             to: "212600000000@c.us",
-            body: "Salam, I want an appointment.",
+            body: "Salam, I want an appointment.....",
             hasMedia: false,
             fromMe: false,
             type: "chat"
