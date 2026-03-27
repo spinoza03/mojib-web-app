@@ -117,14 +117,14 @@ export function Sidebar() {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-3 py-6 space-y-1">
+        <nav className="flex-1 px-3 py-6 space-y-1 overflow-y-auto min-h-0 scrollbar-thin scrollbar-thumb-primary/20 hover:scrollbar-thumb-primary/40">
           {navItems.map((item) => {
             const isImmobilierNav = item.path.startsWith('/immobilier');
             const isRestaurantNav = item.path.startsWith('/restaurant');
             if (isImmobilier && !isImmobilierNav && item.path !== '/dashboard' && item.path !== '/settings' && item.path !== '/connect' && item.path !== '/appointments') {
               return null;
             }
-            if (isRestaurant && !isRestaurantNav && item.path !== '/dashboard' && item.path !== '/settings' && item.path !== '/connect' && item.path !== '/appointments') {
+            if (isRestaurant && !isRestaurantNav && item.path !== '/dashboard' && item.path !== '/settings' && item.path !== '/connect') {
               return null;
             }
             if (!isImmobilier && isImmobilierNav) {

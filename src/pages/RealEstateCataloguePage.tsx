@@ -408,7 +408,7 @@ export default function RealEstateCataloguePage() {
       </Card>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-3xl">
+        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto w-[95vw]">
           <DialogHeader>
             <DialogTitle>{editingPropertyId ? 'Modifier un bien' : 'Ajouter un bien'}</DialogTitle>
           </DialogHeader>

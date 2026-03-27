@@ -70,8 +70,14 @@ async function checkAndSendReminders() {
                     const restaurantName = profile.clinic_name || 'Restaurant';
                     let message = '';
 
+                    const customMessage = profile.reminder_message || `مرحبا {customer_name} 🛵\nالطلبية ديالك من {restaurant_name} خرجات و فالطريق ليك! شوية و توصل. بالصحة و الراحة! 🍽️`;
+
                     if (order.status === 'out_for_delivery') {
-                        message = `مرحبا ${order.customer_name || 'عزيزي الزبون'} 🛵\nالطلبية ديالك من ${restaurantName} خرجات و فالطريق ليك! شوية و توصل. بالصحة و الراحة! 🍽️`;
+                        message = customMessage
+                            .replace(/\{customer_name\}/g, order.customer_name || 'عزيزي الزبون')
+                            .replace(/\{patient_name\}/g, order.customer_name || 'عزيزي الزبون')
+                            .replace(/\{restaurant_name\}/g, restaurantName)
+                            .replace(/\{clinic_name\}/g, restaurantName);
                     } else if (order.status === 'ready_for_pickup') {
                         message = `مرحبا ${order.customer_name || 'عزيزي الزبون'} ✅\nالطلبية ديالك من ${restaurantName} جاهزة! تقدر تجي دير le pickup ديالها. بالصحة و الراحة! 🍽️`;
                     }

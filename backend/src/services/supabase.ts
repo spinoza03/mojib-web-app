@@ -1157,7 +1157,22 @@ export async function getActiveRestaurantProfiles() {
         if (error) console.error('[Restaurant] Error fetching restaurant profiles:', error);
         return [];
     }
-    return data;
+    
+    const results = [];
+    for (const profile of data) {
+        const { data: config } = await supabase
+            .from('bot_configs')
+            .select('reminder_message')
+            .eq('user_id', profile.id)
+            .maybeSingle();
+
+        results.push({
+            ...profile,
+            reminder_message: config?.reminder_message
+        });
+    }
+
+    return results;
 }
 
 export async function getPendingOrderNotifications(userId: string) {

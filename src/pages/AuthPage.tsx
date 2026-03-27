@@ -527,7 +527,7 @@ export default function AuthPage() {
 
       {/* Post-signup Plans (popup/modal) */}
       <Dialog open={showPlansModal} onOpenChange={setShowPlansModal}>
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] rounded-2xl p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold">
               {lang === 'fr' ? 'Choisissez votre formule' : 'Choose your plan'}
@@ -535,7 +535,11 @@ export default function AuthPage() {
           </DialogHeader>
 
           <div className="grid gap-4 md:grid-cols-3 pt-2">
-            {plansForSelectedNiche.map((plan) => (
+            {plansForSelectedNiche.map((plan) => {
+              const numPrice = parseInt(plan.price.replace(/[^0-9]/g, ''));
+              const discountPrice = !isNaN(numPrice) ? `${Math.floor(numPrice / 2)} DH` : plan.price;
+              
+              return (
               <div
                 key={plan.id}
                 onClick={() => setSelectedPlan(plan.id)}
@@ -552,15 +556,34 @@ export default function AuthPage() {
                 )}
                 <div className="mt-2">
                   <div className="text-lg font-black">{plan.label}</div>
-                  <div className="text-2xl font-black mt-1">
-                    {plan.price}
-                    <span className="text-sm font-normal opacity-70">/mo</span>
+                  <div className="flex flex-col mt-2">
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-3xl font-black text-primary">{discountPrice}</span>
+                      <span className="text-xs font-normal opacity-70">
+                        {lang === 'fr' ? '/mois' : '/mo'}
+                      </span>
+                    </div>
+                    <div className="text-[10px] font-semibold text-primary/80 uppercase tracking-wide mb-1">
+                      {lang === 'fr' ? 'Pendant 2 mois' : 'For 2 months'}
+                    </div>
+                    
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-xs font-medium opacity-50 line-through">
+                        {plan.price}/mois
+                      </span>
+                      <span className="text-[10px] bg-emerald-500/10 text-emerald-500 px-1.5 py-0.5 rounded font-bold">
+                        -50%
+                      </span>
+                    </div>
+                    <div className="text-xs font-medium mt-1 text-muted-foreground">
+                      {lang === 'fr' ? 'Puis ' + plan.price + '/mois' : 'Then ' + plan.price + '/mo'}
+                    </div>
                   </div>
-                  <p className="text-xs text-muted-foreground leading-relaxed mt-2">
+                  <p className="text-xs text-muted-foreground leading-relaxed mt-3">
                     {lang === 'fr' ? plan.pitchFr : plan.pitchEn}
                   </p>
                 </div>
-                <div className="space-y-2 mt-auto pt-3">
+                <div className="space-y-2 mt-auto pt-4 border-t border-white/5">
                   {(lang === 'fr' ? plan.valuesFr : plan.valuesEn).map((val, idx) => (
                     <div key={idx} className="flex items-start gap-2.5 text-sm">
                       <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
@@ -571,10 +594,10 @@ export default function AuthPage() {
                   ))}
                 </div>
               </div>
-            ))}
+            )})}
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between pt-4">
+          <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between pt-4 mt-2 border-t border-border/50">
             <Button
               variant="secondary"
               onClick={() => {

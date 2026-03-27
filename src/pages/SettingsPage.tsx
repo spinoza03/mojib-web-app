@@ -354,7 +354,7 @@ export default function SettingsPage() {
 			if (subscriptionStatus === 'expired') {
 				updates.subscription_status = 'active';
 			}
-			const { error } = await supabase.from('profiles').update(updates).eq('id', user.id);
+			const { error } = await supabase.from('profiles').update(updates as any).eq('id', user.id);
 			if (error) throw error;
 			await refreshProfile();
 			toast({
@@ -576,7 +576,8 @@ export default function SettingsPage() {
 					</>
 				)}
 
-				{/* Calendar Config Card (accessible for all niches) */}
+				{/* Calendar Config Card (accessible for all niches except restaurant) */}
+				{!isRestaurant && (
 				<Card className="glass-card">
 					<CardHeader>
 						<CardTitle className="flex items-center gap-2">
@@ -619,6 +620,7 @@ export default function SettingsPage() {
 						</div>
 					</CardContent>
 				</Card>
+				)}
 
 				{/* Bot Behavior Card (accessible for all niches) */}
 				<Card className="glass-card">
@@ -653,12 +655,15 @@ export default function SettingsPage() {
 					<CardHeader>
 						<CardTitle className="flex items-center gap-2">
 							<Bell className="h-5 w-5 text-primary" />
-							Rappels de Rendez-vous
+							{isRestaurant ? 'Notifications de Livraison' : isImmobilier ? 'Rappels de Visite' : 'Rappels de Rendez-vous'}
 						</CardTitle>
-						<CardDescription>Configurez les rappels automatiques WhatsApp pour les prochains rendez-vous.</CardDescription>
+						<CardDescription>
+							{isRestaurant ? 'Configurez le message automatique WhatsApp envoyé quand la commande est en route.' : isImmobilier ? 'Configurez les rappels automatiques WhatsApp pour les prochaines visites.' : 'Configurez les rappels automatiques WhatsApp pour les prochains rendez-vous.'}
+						</CardDescription>
 					</CardHeader>
 					<CardContent className="space-y-6">
 						{/* Reminder Rules */}
+						{!isRestaurant && (
 						<div className="space-y-3">
 							<Label>Planification des Rappels</Label>
 							{reminderRules.map((rule, idx) => (
@@ -729,19 +734,24 @@ export default function SettingsPage() {
 								<Plus className="h-4 w-4" /> Ajouter un Rappel
 							</Button>
 						</div>
+						)}
 
 						{/* Reminder Message */}
 						<div className="space-y-2">
-							<Label>Modèle du Message de Rappel</Label>
+							<Label>{isRestaurant ? 'Modèle du Message de Livraison (En Route)' : 'Modèle du Message de Rappel'}</Label>
 							<Textarea
 								value={reminderMessage}
 								onChange={(e) => setReminderMessage(e.target.value)}
 								className="min-h-[100px] font-mono text-sm bg-secondary/50"
-								placeholder={`مرحبا {patient_name}، هاد تذكير بالموعد ديالك في {clinic_name} نهار {time}. نتمناو نشوفوك!`}
+								placeholder={isRestaurant ? `مرحبا {customer_name} 🛵\nالطلبية ديالك من {restaurant_name} خرجات و فالطريق ليك! شوية و توصل. بالصحة و الراحة! 🍽️` : `مرحبا {patient_name}، هاد تذكير بالموعد ديالك في {clinic_name} نهار {time}. نتمناو نشوفوك!`}
 								disabled={isSubscriptionExpired}
 							/>
 							<p className="text-xs text-muted-foreground mt-2">
-								Variables disponibles : <code>{'{patient_name}'}</code> ({nicheLabels.reminderVar}), <code>{'{clinic_name}'}</code>, <code>{'{time}'}</code>
+								{isRestaurant ? (
+									<>Variables disponibles : <code>{'{customer_name}'}</code>, <code>{'{restaurant_name}'}</code></>
+								) : (
+									<>Variables disponibles : <code>{'{patient_name}'}</code> ({nicheLabels.reminderVar}), <code>{'{clinic_name}'}</code>, <code>{'{time}'}</code></>
+								)}
 							</p>
 						</div>
 
