@@ -21,6 +21,7 @@ import {
 	TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { OnboardingPopup, ONBOARDING_CONFIGS } from '@/components/OnboardingPopup';
+import { WorkingHoursEditor } from '@/components/WorkingHoursEditor';
 
 type PlanType = 'essentiel' | 'pro' | 'elite';
 
@@ -495,15 +496,16 @@ export default function SettingsPage() {
 									</div>
 
 									{/* Working Hours */}
-									<div className="space-y-2">
-										<Label>Horaires de Travail</Label>
-										<Input
+									<div className="space-y-3">
+										<div>
+											<Label className="text-base font-semibold">Horaires de Travail</Label>
+											<p className="text-xs text-muted-foreground mt-1">{nicheLabels.hoursDesc}</p>
+										</div>
+										<WorkingHoursEditor
 											value={workingHours}
-											onChange={(e) => setWorkingHours(e.target.value)}
-											placeholder="ex. Lun-Sam 09:00-18:00"
+											onChange={setWorkingHours}
 											disabled={isSubscriptionExpired}
 										/>
-										<p className="text-xs text-muted-foreground">{nicheLabels.hoursDesc}</p>
 									</div>
 
 									{/* Tone */}

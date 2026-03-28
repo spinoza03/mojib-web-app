@@ -1,8 +1,9 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { Home, Calendar, Smartphone, Settings, LogOut, Shield, Stethoscope, HeartPulse, Scissors, Home as HomeIcon, Car, GraduationCap, Users, PieChart, UtensilsCrossed, ShoppingCart, Package } from 'lucide-react';
+import { Home, Calendar, Smartphone, Settings, LogOut, Shield, Stethoscope, HeartPulse, Scissors, Home as HomeIcon, Car, GraduationCap, Users, PieChart, UtensilsCrossed, ShoppingCart, Package, Globe } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { useAuth, type FeatureName, type NicheType } from '@/hooks/useAuth';
+import { useLanguage } from '@/hooks/useLanguage';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 
@@ -37,6 +38,7 @@ const navItems: Array<{ icon: any; label: string; path: string; feature: Feature
 export function Sidebar() {
   const location = useLocation();
   const { profile, signOut, user, canAccessFeature } = useAuth();
+  const { lang, setLang } = useLanguage();
   const isImmobilier = profile?.niche === 'immobilier';
   const isRestaurant = profile?.niche === 'restaurant';
 
@@ -190,6 +192,33 @@ export function Sidebar() {
             </NavLink>
           )}
         </nav>
+
+        {/* Language Switcher */}
+        <div className="px-4 py-2 border-t border-[hsl(var(--glass-border))]">
+          <div className="flex items-center gap-2 px-3">
+            <Globe className="h-4 w-4 text-muted-foreground" />
+            <div className="flex items-center gap-1 bg-secondary rounded-lg p-0.5 flex-1">
+              <button
+                onClick={() => setLang('fr')}
+                className={cn(
+                  'flex-1 text-xs font-medium py-1.5 rounded-md transition-colors',
+                  lang === 'fr' ? 'bg-primary text-white shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                FR
+              </button>
+              <button
+                onClick={() => setLang('en')}
+                className={cn(
+                  'flex-1 text-xs font-medium py-1.5 rounded-md transition-colors',
+                  lang === 'en' ? 'bg-primary text-white shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                EN
+              </button>
+            </div>
+          </div>
+        </div>
 
         {/* User Profile Footer */}
         <div className="p-4 border-t border-[hsl(var(--glass-border))]">

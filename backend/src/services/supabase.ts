@@ -329,6 +329,14 @@ Mission: ${nicheConfig.mission}
 Business Name: ${clinicName}
 Working Hours: ${workingHours}
 ${additionalInfo ? `Additional Information:\n${additionalInfo}` : ''}
+
+[WORKING HOURS ENFORCEMENT]
+CRITICAL: You MUST NEVER book appointments outside of the working hours listed above.
+- If the working hours show "OFF" for a day, that day is closed. Do NOT offer or accept bookings for that day.
+- If the working hours show time slots (e.g., "09:00-12:00,14:00-18:00"), only book within those exact windows.
+- Slots between time windows (e.g., 12:00-14:00 lunch break) are NOT available.
+- If a client requests a time outside working hours (e.g., 1 AM, or a closed day like Sunday), politely explain you're closed at that time and suggest the nearest available time within working hours.
+- When checking availability with check_availability, only propose slots that fall within the configured working hours.
 ${medicalToolsStr}
 [SALES & CONVERSION RULES]
 ${nicheConfig.salesRules}
@@ -536,7 +544,7 @@ AI: "وعليكم السلام يا سيدي! مرحبا بك مـعانا. 'ن�
 [AGENT STYLE]
 Tone: ${toneDesc}
 ${additionalInfo ? `\n[ADDITIONAL INFO]\n${additionalInfo}` : ''}
-${workingHours ? `\n[WORKING HOURS]\n${workingHours}` : ''}`;
+${workingHours ? `\n[WORKING HOURS]\n${workingHours}\nCRITICAL: Never schedule visits outside these hours. If a day shows "OFF", it is closed.` : ''}`;
 }
 
 
@@ -929,7 +937,7 @@ Customer: "I want 2 Classic Burgers."
 Mojib: " واش نبغي نزيد ليك معاهم شي مشروب بارد باش تكمل الوجبة؟"
 
 ${additionalInfo ? `\n[ADDITIONAL INFO]\n${additionalInfo}` : ''}
-${workingHours ? `\n[WORKING HOURS]\n${workingHours}` : ''}`;
+${workingHours ? `\n[WORKING HOURS]\n${workingHours}\nCRITICAL: Never accept orders outside these hours. If a day shows "OFF", the restaurant is closed.` : ''}`;
 }
 
 export async function getRestaurantMenuForPrompt(userId: string): Promise<string> {

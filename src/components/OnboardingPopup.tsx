@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronRight, ChevronLeft, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useLanguage } from '@/hooks/useLanguage';
 
 export interface OnboardingStep {
-  title: string;
-  description: string;
+  titleKey: string;
+  descKey: string;
   icon: React.ReactNode;
   gradient: string;
 }
@@ -34,6 +35,7 @@ function markPageSeen(pageKey: string) {
 }
 
 export function OnboardingPopup({ pageKey, steps }: OnboardingPopupProps) {
+  const { t, lang } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
 
@@ -145,8 +147,8 @@ export function OnboardingPopup({ pageKey, steps }: OnboardingPopupProps) {
                       exit={{ opacity: 0, x: -30 }}
                       transition={{ duration: 0.2 }}
                     >
-                      <h3 className="text-lg font-bold text-foreground mb-2">{step.title}</h3>
-                      <p className="text-sm text-muted-foreground leading-relaxed">{step.description}</p>
+                      <h3 className="text-lg font-bold text-foreground mb-2">{t(step.titleKey as any)}</h3>
+                      <p className="text-sm text-muted-foreground leading-relaxed">{t(step.descKey as any)}</p>
                     </motion.div>
                   </AnimatePresence>
                 </div>
@@ -176,7 +178,7 @@ export function OnboardingPopup({ pageKey, steps }: OnboardingPopupProps) {
                     disabled={currentStep === 0}
                     className="gap-1"
                   >
-                    <ChevronLeft className="h-4 w-4" /> Back
+                    <ChevronLeft className="h-4 w-4" /> {lang === 'fr' ? 'Retour' : 'Back'}
                   </Button>
 
                   <Button
@@ -187,11 +189,11 @@ export function OnboardingPopup({ pageKey, steps }: OnboardingPopupProps) {
                   >
                     {currentStep === steps.length - 1 ? (
                       <>
-                        <Sparkles className="h-4 w-4" /> Got it!
+                        <Sparkles className="h-4 w-4" /> {lang === 'fr' ? 'Compris !' : 'Got it!'}
                       </>
                     ) : (
                       <>
-                        Next <ChevronRight className="h-4 w-4" />
+                        {lang === 'fr' ? 'Suivant' : 'Next'} <ChevronRight className="h-4 w-4" />
                       </>
                     )}
                   </Button>
@@ -202,7 +204,7 @@ export function OnboardingPopup({ pageKey, steps }: OnboardingPopupProps) {
                   onClick={handleClose}
                   className="w-full text-center text-xs text-muted-foreground mt-3 hover:text-foreground transition-colors"
                 >
-                  Skip tutorial
+                  {lang === 'fr' ? 'Passer le tutoriel' : 'Skip tutorial'}
                 </button>
               </div>
             </div>
@@ -220,31 +222,31 @@ import { CalendarDays, MessageSquare, Settings, Users, BarChart3, Link2, Bell, Z
 
 export const ONBOARDING_CONFIGS: Record<string, OnboardingStep[]> = {
   dashboard: [
-    { title: 'Welcome to your Dashboard', description: 'This is your command center. See all your key metrics at a glance — appointments today, new patients, revenue, and AI conversation stats.', icon: <BarChart3 className="h-10 w-10" />, gradient: 'bg-gradient-to-br from-[#2589D0] to-[#1a6fb0]' },
-    { title: 'Real-Time Analytics', description: 'Your numbers update in real-time. Track patient flow, conversion rates, and no-show patterns to optimize your practice.', icon: <Zap className="h-10 w-10" />, gradient: 'bg-gradient-to-br from-violet-500 to-purple-600' },
+    { titleKey: 'onboarding.dashboard.1.title', descKey: 'onboarding.dashboard.1.desc', icon: <BarChart3 className="h-10 w-10" />, gradient: 'bg-gradient-to-br from-[#2589D0] to-[#1a6fb0]' },
+    { titleKey: 'onboarding.dashboard.2.title', descKey: 'onboarding.dashboard.2.desc', icon: <Zap className="h-10 w-10" />, gradient: 'bg-gradient-to-br from-violet-500 to-purple-600' },
   ],
   appointments: [
-    { title: 'Manage Your Calendar', description: 'View all appointments in month, week, or day view. Drag and drop to reschedule instantly. Click any appointment to see details.', icon: <CalendarDays className="h-10 w-10" />, gradient: 'bg-gradient-to-br from-[#2589D0] to-[#1a6fb0]' },
-    { title: 'Track Patient Attendance', description: 'Mark patients as "Showed Up", "No Show", or "Cancelled" with one click. Track no-show patterns over time to reduce missed appointments.', icon: <UserX className="h-10 w-10" />, gradient: 'bg-gradient-to-br from-violet-500 to-purple-600' },
-    { title: 'Share Your Booking Link', description: 'Click "Share Booking Link" to get a public URL. Send it to patients via WhatsApp, social media, or your website — they can book without creating an account.', icon: <Share2 className="h-10 w-10" />, gradient: 'bg-gradient-to-br from-emerald-500 to-green-600' },
-    { title: 'Color-Coded Statuses', description: 'Blue = Confirmed, Yellow = Pending, Green = Completed, Purple = No Show, Grey = Cancelled. Filter by clicking the status badges at the top.', icon: <Palette className="h-10 w-10" />, gradient: 'bg-gradient-to-br from-amber-500 to-orange-600' },
+    { titleKey: 'onboarding.appointments.1.title', descKey: 'onboarding.appointments.1.desc', icon: <CalendarDays className="h-10 w-10" />, gradient: 'bg-gradient-to-br from-[#2589D0] to-[#1a6fb0]' },
+    { titleKey: 'onboarding.appointments.2.title', descKey: 'onboarding.appointments.2.desc', icon: <UserX className="h-10 w-10" />, gradient: 'bg-gradient-to-br from-violet-500 to-purple-600' },
+    { titleKey: 'onboarding.appointments.3.title', descKey: 'onboarding.appointments.3.desc', icon: <Share2 className="h-10 w-10" />, gradient: 'bg-gradient-to-br from-emerald-500 to-green-600' },
+    { titleKey: 'onboarding.appointments.4.title', descKey: 'onboarding.appointments.4.desc', icon: <Palette className="h-10 w-10" />, gradient: 'bg-gradient-to-br from-amber-500 to-orange-600' },
   ],
   connect: [
-    { title: 'Connect WhatsApp', description: 'Scan the QR code to link your WhatsApp Business number. Once connected, the AI agent will automatically respond to patient messages 24/7.', icon: <Plug className="h-10 w-10" />, gradient: 'bg-gradient-to-br from-green-500 to-emerald-600' },
-    { title: 'AI-Powered Conversations', description: 'Your AI assistant handles booking requests, FAQs, and follow-ups. It speaks Darija, French, and English — adapting to each patient automatically.', icon: <Bot className="h-10 w-10" />, gradient: 'bg-gradient-to-br from-[#2589D0] to-[#1a6fb0]' },
-    { title: 'Manual Takeover', description: 'Need to jump in? Just reply from your phone — the AI will pause automatically and resume after your configured cooldown period.', icon: <MessageSquare className="h-10 w-10" />, gradient: 'bg-gradient-to-br from-violet-500 to-purple-600' },
+    { titleKey: 'onboarding.connect.1.title', descKey: 'onboarding.connect.1.desc', icon: <Plug className="h-10 w-10" />, gradient: 'bg-gradient-to-br from-green-500 to-emerald-600' },
+    { titleKey: 'onboarding.connect.2.title', descKey: 'onboarding.connect.2.desc', icon: <Bot className="h-10 w-10" />, gradient: 'bg-gradient-to-br from-[#2589D0] to-[#1a6fb0]' },
+    { titleKey: 'onboarding.connect.3.title', descKey: 'onboarding.connect.3.desc', icon: <MessageSquare className="h-10 w-10" />, gradient: 'bg-gradient-to-br from-violet-500 to-purple-600' },
   ],
   settings: [
-    { title: 'Configure Your AI Agent', description: 'Customize your business name, working hours, agent tone, and supported languages. The AI prompt is auto-generated from these settings.', icon: <Settings className="h-10 w-10" />, gradient: 'bg-gradient-to-br from-slate-600 to-slate-800' },
-    { title: 'Set Up Reminders', description: 'Configure automatic WhatsApp reminders before appointments. Set multiple reminders (e.g., 24 hours + 30 minutes before) to reduce no-shows.', icon: <Bell className="h-10 w-10" />, gradient: 'bg-gradient-to-br from-amber-500 to-orange-600' },
-    { title: 'Slot Capacity & Intervals', description: 'Set how many patients can book the same time slot, and the duration of each slot (15, 30, or 60 minutes). Perfect for clinics with multiple treatment rooms.', icon: <CalendarDays className="h-10 w-10" />, gradient: 'bg-gradient-to-br from-[#2589D0] to-[#1a6fb0]' },
+    { titleKey: 'onboarding.settings.1.title', descKey: 'onboarding.settings.1.desc', icon: <Settings className="h-10 w-10" />, gradient: 'bg-gradient-to-br from-slate-600 to-slate-800' },
+    { titleKey: 'onboarding.settings.2.title', descKey: 'onboarding.settings.2.desc', icon: <Bell className="h-10 w-10" />, gradient: 'bg-gradient-to-br from-amber-500 to-orange-600' },
+    { titleKey: 'onboarding.settings.3.title', descKey: 'onboarding.settings.3.desc', icon: <CalendarDays className="h-10 w-10" />, gradient: 'bg-gradient-to-br from-[#2589D0] to-[#1a6fb0]' },
   ],
   crm: [
-    { title: 'Patient Management', description: 'View all your patients in one place. See their contact info, appointment history, and treatment records. Add notes to keep track of important details.', icon: <Users className="h-10 w-10" />, gradient: 'bg-gradient-to-br from-[#2589D0] to-[#1a6fb0]' },
-    { title: 'Quick Actions', description: 'Click on any patient to view their full profile, send them a WhatsApp message, or schedule their next appointment — all from one screen.', icon: <Zap className="h-10 w-10" />, gradient: 'bg-gradient-to-br from-emerald-500 to-green-600' },
+    { titleKey: 'onboarding.crm.1.title', descKey: 'onboarding.crm.1.desc', icon: <Users className="h-10 w-10" />, gradient: 'bg-gradient-to-br from-[#2589D0] to-[#1a6fb0]' },
+    { titleKey: 'onboarding.crm.2.title', descKey: 'onboarding.crm.2.desc', icon: <Zap className="h-10 w-10" />, gradient: 'bg-gradient-to-br from-emerald-500 to-green-600' },
   ],
   finance: [
-    { title: 'Financial Overview', description: 'Track your revenue, expenses, and profit in real-time. See which treatments are most profitable and identify revenue trends over time.', icon: <BarChart3 className="h-10 w-10" />, gradient: 'bg-gradient-to-br from-emerald-500 to-green-600' },
-    { title: 'Treatment Records', description: 'Log treatments with their cost and price. The system automatically calculates your profit margin for each service.', icon: <Zap className="h-10 w-10" />, gradient: 'bg-gradient-to-br from-[#2589D0] to-[#1a6fb0]' },
+    { titleKey: 'onboarding.finance.1.title', descKey: 'onboarding.finance.1.desc', icon: <BarChart3 className="h-10 w-10" />, gradient: 'bg-gradient-to-br from-emerald-500 to-green-600' },
+    { titleKey: 'onboarding.finance.2.title', descKey: 'onboarding.finance.2.desc', icon: <Zap className="h-10 w-10" />, gradient: 'bg-gradient-to-br from-[#2589D0] to-[#1a6fb0]' },
   ],
 };

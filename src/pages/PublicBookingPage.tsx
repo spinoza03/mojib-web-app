@@ -63,28 +63,62 @@ export default function PublicBookingPage() {
     const interval = clinic.slot_interval_minutes || 30;
     const capacity = clinic.slot_capacity || 1;
 
-    // Parse working hours (e.g., "09:00 - 18:00" or "9h-18h")
-    let startHour = 9, endHour = 18;
-    if (clinic.working_hours) {
-      const match = clinic.working_hours.match(/(\d{1,2})[h:]?\s*[-–]\s*(\d{1,2})/);
-      if (match) {
-        startHour = parseInt(match[1]);
-        endHour = parseInt(match[2]);
+    // Parse working hours - supports new format "Mon 09:00-12:00,14:00-18:00 | Tue ..." and legacy "Mon-Sat 09:00-18:00"
+    const dayOfWeek = new Date(selectedDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' });
+
+    let timeWindows: Array<{ startH: number; startM: number; endH: number; endM: number }> = [];
+
+    if (clinic.working_hours?.includes('|')) {
+      // New pipe-separated format
+      const parts = clinic.working_hours.split('|').map((p: string) => p.trim());
+      const dayPart = parts.find((p: string) => p.startsWith(dayOfWeek));
+
+      if (!dayPart || dayPart.includes('OFF')) {
+        return []; // Day is off
       }
+
+      const slotsStr = dayPart.replace(dayOfWeek, '').trim();
+      const ranges = slotsStr.split(',');
+      for (const range of ranges) {
+        const [start, end] = range.trim().split('-');
+        if (start && end) {
+          const [sh, sm] = start.split(':').map(Number);
+          const [eh, em] = end.split(':').map(Number);
+          timeWindows.push({ startH: sh, startM: sm || 0, endH: eh, endM: em || 0 });
+        }
+      }
+    } else {
+      // Legacy format
+      let startHour = 9, endHour = 18;
+      if (clinic.working_hours) {
+        const match = clinic.working_hours.match(/(\d{1,2})[h:]?\s*[-–]\s*(\d{1,2})/);
+        if (match) {
+          startHour = parseInt(match[1]);
+          endHour = parseInt(match[2]);
+        }
+      }
+      timeWindows = [{ startH: startHour, startM: 0, endH: endHour, endM: 0 }];
     }
+
+    if (timeWindows.length === 0) return [];
 
     const slots: string[] = [];
     const now = new Date();
     const isToday = selectedDate === now.toISOString().split('T')[0];
 
-    for (let h = startHour; h < endHour; h++) {
-      for (let m = 0; m < 60; m += interval) {
+    for (const window of timeWindows) {
+      let totalMinutes = window.startH * 60 + window.startM;
+      const endMinutes = window.endH * 60 + window.endM;
+
+      while (totalMinutes < endMinutes) {
+        const h = Math.floor(totalMinutes / 60);
+        const m = totalMinutes % 60;
         const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 
         // Skip past times if today
         if (isToday) {
           const slotTime = new Date(`${selectedDate}T${timeStr}`);
-          if (slotTime <= now) continue;
+          if (slotTime <= now) { totalMinutes += interval; continue; }
         }
 
         // Count how many appointments exist at this time
@@ -97,6 +131,8 @@ export default function PublicBookingPage() {
         if (bookedCount < capacity) {
           slots.push(timeStr);
         }
+
+        totalMinutes += interval;
       }
     }
 

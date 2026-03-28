@@ -254,7 +254,7 @@ export default function AppointmentsPage() {
   };
 
   const handleStatusChange = async (newStatus: string) => {
-    if (!selectedEvent) return;
+    if (!selectedEvent || !user) return;
     const { data, error } = await supabase.from('appointments')
       .update({ status: newStatus })
       .eq('id', selectedEvent.id)
@@ -266,6 +266,38 @@ export default function AppointmentsPage() {
       toast({ title: 'Status Updated', description: `Marked as ${STATUS_COLORS[newStatus]?.label || newStatus}.` });
       setSelectedEvent({ ...selectedEvent, resource: { ...selectedEvent.resource, status: newStatus } });
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
+
+      // Auto-add patient to CRM when marked as 'completed' (showed up)
+      if (newStatus === 'completed' && selectedEvent.title) {
+        const patientName = selectedEvent.title;
+        const patientPhone = selectedEvent.resource.phone;
+
+        // Check if patient already exists in CRM by phone
+        const { data: existing } = await supabase
+          .from('patients')
+          .select('id')
+          .eq('user_id', user.id)
+          .or(patientPhone ? `phone.eq.${patientPhone}` : `first_name.eq.${patientName}`)
+          .maybeSingle();
+
+        if (!existing) {
+          // Split name into first/last
+          const nameParts = patientName.trim().split(/\s+/);
+          const firstName = nameParts[0] || patientName;
+          const lastName = nameParts.slice(1).join(' ') || '';
+
+          const { error: crmError } = await supabase.from('patients').insert({
+            user_id: user.id,
+            first_name: firstName,
+            last_name: lastName,
+            phone: patientPhone || '',
+          });
+
+          if (!crmError) {
+            toast({ title: 'Patient Added', description: `${patientName} has been added to your CRM.` });
+          }
+        }
+      }
     }
   };
 
