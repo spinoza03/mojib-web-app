@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { useNavigate } from 'react-router-dom';
+import { OnboardingPopup, ONBOARDING_CONFIGS } from '@/components/OnboardingPopup';
 
 const WAHA_URL = 'https://waha.mojib.online';
 const API_KEY = 'my-secret-key';
@@ -430,6 +431,7 @@ export default function ConnectPage() {
 
 	return (
 		<AppLayout>
+			<OnboardingPopup pageKey="connect" steps={ONBOARDING_CONFIGS.connect} />
 			<div className="max-w-4xl mx-auto space-y-8">
 				<div className="text-center">
 					<h1 className="text-3xl font-bold mb-2">Connexion WhatsApp</h1>

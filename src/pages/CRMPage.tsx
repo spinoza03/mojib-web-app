@@ -15,6 +15,7 @@ import moment from 'moment';
 import 'moment/locale/fr';
 
 moment.locale('fr');
+import { OnboardingPopup, ONBOARDING_CONFIGS } from '@/components/OnboardingPopup';
 
 export default function CRMPage() {
 	const { user } = useAuth();
@@ -206,6 +207,7 @@ export default function CRMPage() {
 
 	return (
 		<AppLayout>
+			<OnboardingPopup pageKey="crm" steps={ONBOARDING_CONFIGS.crm} />
 			<div className="max-w-6xl mx-auto space-y-6">
 				<div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
 					<div>

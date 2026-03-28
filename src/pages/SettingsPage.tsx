@@ -20,6 +20,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { OnboardingPopup, ONBOARDING_CONFIGS } from '@/components/OnboardingPopup';
 
 type PlanType = 'essentiel' | 'pro' | 'elite';
 
@@ -370,6 +371,7 @@ export default function SettingsPage() {
 
 	return (
 		<AppLayout>
+			<OnboardingPopup pageKey="settings" steps={ONBOARDING_CONFIGS.settings} />
 			<div className="space-y-6 max-w-4xl mx-auto">
 				<div>
 					<h1 className="text-3xl font-bold mb-2">Paramètres de l'IA</h1>

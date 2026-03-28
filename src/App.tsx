@@ -21,6 +21,7 @@ import RestaurantOrdersPage from "./pages/RestaurantOrdersPage";
 import RestaurantCustomersPage from "./pages/RestaurantCustomersPage";
 import RestaurantInventoryPage from "./pages/RestaurantInventoryPage";
 import RestaurantFinancePage from "./pages/RestaurantFinancePage";
+import PublicBookingPage from "./pages/PublicBookingPage";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 
@@ -92,8 +93,9 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
-            {/* Public Route */}
+            {/* Public Routes */}
             <Route path="/auth" element={<AuthPage />} />
+            <Route path="/book/:token" element={<PublicBookingPage />} />
             
             {/* Redirect root to auth or dashboard */}
             <Route path="/" element={<Navigate to="/auth" replace />} />

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Calendar, Users, Clock, ArrowRight, Activity, Loader2, Bot, MessageSquare, ShoppingCart } from 'lucide-react';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
+import { OnboardingPopup, ONBOARDING_CONFIGS } from '@/components/OnboardingPopup';
 
 export default function DashboardPage() {
   const { user, profile, isNicheActive } = useAuth();
@@ -153,6 +154,7 @@ export default function DashboardPage() {
 
   return (
     <AppLayout>
+      <OnboardingPopup pageKey="dashboard" steps={ONBOARDING_CONFIGS.dashboard} />
       <div className="space-y-8">
         {/* Header Section */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">

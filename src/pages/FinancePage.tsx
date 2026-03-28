@@ -9,6 +9,7 @@ import moment from 'moment';
 import 'moment/locale/fr';
 
 moment.locale('fr');
+import { OnboardingPopup, ONBOARDING_CONFIGS } from '@/components/OnboardingPopup';
 
 export default function FinancePage() {
 	const { user } = useAuth();
@@ -75,6 +76,7 @@ export default function FinancePage() {
 
 	return (
 		<AppLayout>
+			<OnboardingPopup pageKey="finance" steps={ONBOARDING_CONFIGS.finance} />
 			<div className="max-w-6xl mx-auto space-y-8">
 				<div>
 					<h1 className="text-3xl font-bold mb-2 flex items-center gap-2">
