@@ -53,6 +53,7 @@ export default function SettingsPage() {
 	const [additionalInfo, setAdditionalInfo] = useState('');
 	const [slotCapacity, setSlotCapacity] = useState(1);
 	const [slotIntervalMinutes, setSlotIntervalMinutes] = useState(30);
+	const [timezone, setTimezone] = useState('Africa/Casablanca');
 
 	// Cooldown & Reminder state
 	const [cooldownSeconds, setCooldownSeconds] = useState(60);
@@ -96,7 +97,7 @@ export default function SettingsPage() {
 			// B. Load Bot Config
 			const { data: botData } = await supabase
 				.from('bot_configs' as any)
-				.select('system_prompt, cooldown_seconds, reminder_message, reminder_rules, working_hours, tone, languages, additional_info, slot_capacity, slot_interval_minutes')
+				.select('system_prompt, cooldown_seconds, reminder_message, reminder_rules, working_hours, tone, languages, additional_info, slot_capacity, slot_interval_minutes, timezone')
 				.eq('user_id', user.id)
 				.maybeSingle();
 
@@ -107,6 +108,8 @@ export default function SettingsPage() {
 				if (botData.slot_capacity != null) setSlotCapacity(botData.slot_capacity);
 				// @ts-ignore
 				if (botData.slot_interval_minutes != null) setSlotIntervalMinutes(botData.slot_interval_minutes);
+				// @ts-ignore
+				if (botData.timezone) setTimezone(botData.timezone);
 				// @ts-ignore
 				if (botData.reminder_message) setReminderMessage(botData.reminder_message);
 				// @ts-ignore
@@ -200,6 +203,7 @@ export default function SettingsPage() {
 				tone: tone,
 				languages: selectedLanguages.join(','),
 				additional_info: additionalInfo,
+				timezone: timezone,
 				// Clear system_prompt so backend auto-generates from structured fields
 				system_prompt: '',
 			};
@@ -591,6 +595,25 @@ export default function SettingsPage() {
 						<CardDescription>Définissez vos règles de prise de rendez-vous pour éviter les conflits (sécurité double-booking).</CardDescription>
 					</CardHeader>
 					<CardContent className="space-y-6">
+						{/* Timezone */}
+						<div className="space-y-3">
+							<Label className="flex items-center gap-2"><Clock className="h-4 w-4" /> Fuseau Horaire</Label>
+							<Select value={timezone} onValueChange={setTimezone} disabled={isSubscriptionExpired}>
+								<SelectTrigger>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="Africa/Casablanca">Casablanca (Maroc)</SelectItem>
+									<SelectItem value="Europe/Paris">Paris (CET/CEST)</SelectItem>
+									<SelectItem value="UTC">UTC (GMT+0)</SelectItem>
+									<SelectItem value="America/New_York">New York (EST/EDT)</SelectItem>
+									<SelectItem value="Asia/Dubai">Dubai (GST)</SelectItem>
+									<SelectItem value="Asia/Riyadh">Riyadh (AST)</SelectItem>
+								</SelectContent>
+							</Select>
+							<p className="text-xs text-muted-foreground">Ce fuseau horaire sera utilisé pour l'IA, la prise de rendez-vous et l'affichage du calendrier.</p>
+						</div>
+
 						<div className="space-y-3">
 							<div className="flex items-center justify-between">
 								<Label className="flex items-center gap-2"><Users className="h-4 w-4" /> {nicheLabels.capacityLabel}</Label>

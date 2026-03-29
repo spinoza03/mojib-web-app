@@ -54,7 +54,7 @@ export const DOCTOR_TOOLS = [
                 type: "object",
                 properties: {
                     doctor_id: { type: "string" },
-                    start_date_time: { type: "string", description: "Format: YYYY-MM-DD 00:00:00+00" }
+                    start_date_time: { type: "string", description: "Format: YYYY-MM-DD (just the date, no time needed)" }
                 },
                 required: ["doctor_id", "start_date_time"]
             }
@@ -64,12 +64,12 @@ export const DOCTOR_TOOLS = [
         type: "function" as const,
         function: {
             name: "book_appointment",
-            description: "Use this tool ONLY after the patient has clearly confirmed a specific time slot. It creates a new appointment in the database.",
+            description: "Use this tool ONLY after the patient has clearly confirmed a specific time slot. It creates a new appointment in the database. Times are in the clinic's local timezone.",
             parameters: {
                 type: "object",
                 properties: {
                     doctor_id: { type: "string" },
-                    start_date_time: { type: "string", description: "Format: YYYY-MM-DD HH:mm:ss+00" },
+                    start_date_time: { type: "string", description: "Format: YYYY-MM-DD HH:mm:ss (in the clinic's local timezone, no +00 offset)" },
                     patient_phone: { type: "string" },
                     patient_name: { type: "string" },
                     reason: { type: "string" }
@@ -276,17 +276,22 @@ export async function generateDoctorResponse(
     patientPhone: string,
     chatHistory: any[],
     newMessage: string,
-    imageUrl?: string
+    imageUrl?: string,
+    timezone: string = 'Africa/Casablanca'
 ) {
     const now = new Date();
-    // Use proper zero-padded formats 
-    const dd = String(now.getDate()).padStart(2, '0');
-    const mm = String(now.getMonth() + 1).padStart(2, '0');
-    const yyyy = now.getFullYear();
-    
-    const temporalContext = `[TEMPORAL CONTEXT] Today's Date: ${yyyy}-${mm}-${dd} (YYYY-MM-DD) Today's Day: ${now.toLocaleDateString('en-US', {weekday: 'long'})} Current Time: ${now.toLocaleTimeString('en-GB', {hour: '2-digit', minute:'2-digit'})}\n`;
-    
+    // Format date/time in the clinic's timezone
+    const dateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' });
+    const dayFormatter = new Intl.DateTimeFormat('en-US', { timeZone: timezone, weekday: 'long' });
+    const timeFormatter = new Intl.DateTimeFormat('en-GB', { timeZone: timezone, hour: '2-digit', minute: '2-digit', hour12: false });
+
+    const dateStr = dateFormatter.format(now);
+    const dayStr = dayFormatter.format(now);
+    const timeStr = timeFormatter.format(now);
+
+    const temporalContext = `[TEMPORAL CONTEXT] Today's Date: ${dateStr} (YYYY-MM-DD) Today's Day: ${dayStr} Current Time: ${timeStr} Timezone: ${timezone}\n[IMPORTANT] All appointment times MUST be in the clinic's timezone (${timezone}). When calling check_availability or book_appointment, use the format YYYY-MM-DD HH:mm:ss without any timezone offset — the system will interpret them in ${timezone}.\n`;
+
     const fullSystemPrompt = temporalContext + systemPrompt;
-    
+
     return generateResponse(fullSystemPrompt, patientPhone, chatHistory, newMessage, imageUrl, DOCTOR_TOOLS);
 }

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Calendar, dateFnsLocalizer, View, Views } from 'react-big-calendar';
 import format from 'date-fns/format';
@@ -87,6 +87,17 @@ export default function AppointmentsPage() {
   const [view, setView] = useState<View>(Views.MONTH);
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
+  // Load saved timezone from bot_config (set in Settings page)
+  const { data: savedTimezone } = useQuery({
+    queryKey: ['bot_config_timezone', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return 'Africa/Casablanca';
+      const { data } = await supabase.from('bot_configs').select('timezone').eq('user_id', user.id).maybeSingle();
+      return (data as any)?.timezone || 'Africa/Casablanca';
+    },
+    enabled: !!user?.id
+  });
+
   const browserIz = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const popularTimezones = [
     { value: 'UTC', label: 'UTC (GMT+0)' },
@@ -97,7 +108,12 @@ export default function AppointmentsPage() {
     { value: browserIz, label: `Local (${browserIz})` }
   ];
 
-  const [selectedTimzeone, setSelectedTimezone] = useState(browserIz || 'Africa/Casablanca');
+  const [selectedTimzeone, setSelectedTimezone] = useState(savedTimezone || 'Africa/Casablanca');
+
+  // Sync with saved timezone from settings when it loads
+  useEffect(() => {
+    if (savedTimezone) setSelectedTimezone(savedTimezone);
+  }, [savedTimezone]);
 
   // Fetch share_token for the public booking link
   const { data: shareToken } = useQuery({

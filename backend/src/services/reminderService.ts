@@ -10,10 +10,10 @@ function formatReminderMessage(template: string, patientName: string, clinicName
         .replace(/\{time\}/g, appointmentTime);
 }
 
-function formatDateTime(isoString: string): string {
+function formatDateTime(isoString: string, timezone: string = 'Africa/Casablanca'): string {
     const d = new Date(isoString);
-    const day = d.toLocaleDateString('ar-MA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-    const time = d.toLocaleTimeString('ar-MA', { hour: '2-digit', minute: '2-digit' });
+    const day = d.toLocaleDateString('ar-MA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: timezone });
+    const time = d.toLocaleTimeString('ar-MA', { hour: '2-digit', minute: '2-digit', timeZone: timezone });
     return `${day} ${time}`;
 }
 
@@ -34,7 +34,7 @@ async function checkAndSendReminders() {
                         ? apt.patient_phone 
                         : `${apt.patient_phone.replace(/\D/g, '')}@c.us`;
 
-                    const formattedTime = formatDateTime(apt.start_time);
+                    const formattedTime = formatDateTime(apt.start_time, config.timezone || 'Africa/Casablanca');
                     const message = formatReminderMessage(
                         config.reminder_message,
                         apt.patient_name || 'Patient',

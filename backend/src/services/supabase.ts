@@ -112,10 +112,10 @@ export async function getClinicBotSettingsBySession(sessionName: string) {
                 .replace(/\{\{tone\}\}/g, data.tone || '')
                 .replace(/\{\{languages\}\}/g, data.languages || '')
                 .replace(/\{\{additional_info\}\}/g, data.additional_info || '')
-                // Date replacements that Immobilier uses natively
-                .replace(/\{\{date\}\}/g, new Date().toLocaleDateString('en-CA'))
-                .replace(/\{\{day\}\}/g, new Date().toLocaleDateString('en-US', { weekday: 'long' }))
-                .replace(/\{\{time\}\}/g, new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }));
+                // Date replacements using clinic timezone
+                .replace(/\{\{date\}\}/g, new Intl.DateTimeFormat('en-CA', { timeZone: data.timezone || 'Africa/Casablanca' }).format(new Date()))
+                .replace(/\{\{day\}\}/g, new Intl.DateTimeFormat('en-US', { timeZone: data.timezone || 'Africa/Casablanca', weekday: 'long' }).format(new Date()))
+                .replace(/\{\{time\}\}/g, new Intl.DateTimeFormat('en-GB', { timeZone: data.timezone || 'Africa/Casablanca', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date()));
         }
     } catch (err) {
         console.warn('[Config] niche_master_prompts table might not exist yet.');
@@ -160,7 +160,8 @@ export async function getClinicBotSettingsBySession(sessionName: string) {
         waha_session_name: data.waha_session_name,
         niche: data.niche,
         system_prompt: systemPrompt,
-        cooldown_seconds: data.cooldown_seconds
+        cooldown_seconds: data.cooldown_seconds,
+        timezone: data.timezone || 'Africa/Casablanca'
     };
 }
 
@@ -548,7 +549,7 @@ ${workingHours ? `\n[WORKING HOURS]\n${workingHours}\nCRITICAL: Never schedule v
 }
 
 
-export async function checkAvailability(doctorId: string, dateTimeISO: string) {
+export async function checkAvailability(doctorId: string, dateTimeISO: string, timezone: string = 'Africa/Casablanca') {
     // dateTimeISO is e.g. "2026-02-11 00:00:00+00"
     // Extract simply the YYYY-MM-DD
     const dateString = dateTimeISO.split('T')[0].split(' ')[0];
@@ -571,14 +572,16 @@ export async function checkAvailability(doctorId: string, dateTimeISO: string) {
     }
 
     const allSlots = ["09:00", "10:00", "11:00", "12:00", "14:00", "15:00", "16:00", "17:00", "18:00"];
-    
+
     const bookedTimes: string[] = [];
     if (data) {
         data.forEach(apt => {
             const date = new Date(apt.start_time);
-            const hh = date.getUTCHours().toString().padStart(2, '0');
-            const mm = date.getUTCMinutes().toString().padStart(2, '0');
-            bookedTimes.push(`${hh}:${mm}`);
+            // Use clinic timezone instead of UTC to extract the correct local hour
+            const formatter = new Intl.DateTimeFormat('en-GB', {
+                hour: '2-digit', minute: '2-digit', hour12: false, timeZone: timezone
+            });
+            bookedTimes.push(formatter.format(date));
         });
     }
 
@@ -586,8 +589,29 @@ export async function checkAvailability(doctorId: string, dateTimeISO: string) {
     return { status: "partially_booked", free_slots: freeSlots, booked_slots: bookedTimes };
 }
 
-export async function bookAppointment(doctorId: string, startDateTime: string, patientPhone: string, patientName: string, reason: string) {
-    const start = new Date(startDateTime);
+/**
+ * Convert a naive datetime string (no offset) to UTC Date, interpreting it in the given timezone.
+ * e.g. "2026-03-29 10:00:00" in "Africa/Casablanca" (UTC+1) → 09:00 UTC
+ */
+function naiveToUtc(naiveDateStr: string, timezone: string): Date {
+    // Treat the string as UTC first to get the numeric components
+    const naive = new Date(naiveDateStr.replace(' ', 'T') + 'Z');
+    // Find the timezone offset at this moment
+    const tzTime = new Date(naive.toLocaleString('en-US', { timeZone: timezone }));
+    const utcTime = new Date(naive.toLocaleString('en-US', { timeZone: 'UTC' }));
+    const offsetMs = tzTime.getTime() - utcTime.getTime();
+    // Subtract offset: if timezone is UTC+1, we need to go back 1h to get UTC
+    return new Date(naive.getTime() - offsetMs);
+}
+
+export async function bookAppointment(doctorId: string, startDateTime: string, patientPhone: string, patientName: string, reason: string, timezone: string = 'Africa/Casablanca') {
+    let start: Date;
+    // If the AI sends time without offset (e.g. "2026-03-29 10:00:00"), interpret in clinic timezone
+    if (!startDateTime.match(/[+-]\d{2}(:\d{2})?$/) && !startDateTime.endsWith('Z')) {
+        start = naiveToUtc(startDateTime, timezone);
+    } else {
+        start = new Date(startDateTime);
+    }
     const end = new Date(start.getTime() + 30 * 60000);
 
     const cleanPhone = patientPhone ? String(patientPhone).replace(/\D/g, "") : "MISSING_PHONE";
@@ -609,8 +633,8 @@ export async function bookAppointment(doctorId: string, startDateTime: string, p
         return { status: "error", message: "Failed to book appointment." };
     }
 
-    return { 
-        status: "success", 
+    return {
+        status: "success",
         confirmation_body: {
             message: "تم تسجيل الموعد بنجاح ",
             patient: patientName,
@@ -800,7 +824,7 @@ export async function getAllActiveReminderConfigs() {
     for (const profile of data) {
         const { data: config } = await supabase
             .from('bot_configs')
-            .select('reminder_message, reminder_rules, cooldown_seconds')
+            .select('reminder_message, reminder_rules, cooldown_seconds, timezone')
             .eq('user_id', profile.id)
             .maybeSingle();
 
@@ -812,7 +836,8 @@ export async function getAllActiveReminderConfigs() {
                     clinic_name: profile.clinic_name,
                     waha_session_name: profile.waha_session_name,
                     reminder_message: config.reminder_message || 'مرحبا {patient_name}، هاد تذكير بالموعد ديالك في {clinic_name} نهار {time}. نتمناو نشوفوك!',
-                    reminder_rules: enabledRules
+                    reminder_rules: enabledRules,
+                    timezone: config.timezone || 'Africa/Casablanca'
                 });
             }
         }

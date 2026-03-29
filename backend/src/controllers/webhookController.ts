@@ -63,7 +63,8 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
             return;
         }
 
-        const phone_number = message.from;
+        // Use payload.from directly from the WAHA webhook body
+        const phone_number = payload.payload.from;
         
         // 1. Fetch DB settings
         let isDoctorBot = false;
@@ -97,6 +98,7 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
         }
 
         const cooldown_seconds = config.cooldown_seconds || 60;
+        const clinicTimezone = config.timezone || 'Africa/Casablanca';
         let system_prompt = config.system_prompt;
 
         // Immobilier: inject the real-estate catalogue into the prompt
@@ -251,7 +253,7 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
                 const isRealEstateBot = config.niche === 'immobilier';
                 const isRestaurantBot = config.niche === 'restaurant';
         let aiMessage = await (isDoctorBot
-            ? generateDoctorResponse(system_prompt, patientPhone, chatHistory, textContent, imageUrl)
+            ? generateDoctorResponse(system_prompt, patientPhone, chatHistory, textContent, imageUrl, clinicTimezone)
             : isRealEstateBot
                 ? generateResponse(system_prompt, patientPhone, chatHistory, textContent, imageUrl, REAL_ESTATE_TOOLS)
                 : isRestaurantBot
@@ -293,13 +295,15 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
                 else if (toolCall.function.name === 'check_availability') {
                     const args = JSON.parse(toolCall.function.arguments);
                     console.log(`[TOOL] Check Availability (${config.user_id}):`, args);
-                    const availability = await checkAvailability(config.user_id, args.start_date_time);
+                    const availability = await checkAvailability(config.user_id, args.start_date_time, clinicTimezone);
                     tempMessages.push({ role: "tool", tool_call_id: toolCall.id, content: JSON.stringify(availability) });
                 }
                 else if (toolCall.function.name === 'book_appointment') {
                     const args = JSON.parse(toolCall.function.arguments);
                     console.log(`[TOOL] Book Appointment (${config.user_id}):`, args);
-                    const booking = await bookAppointment(config.user_id, args.start_date_time, args.patient_phone, args.patient_name, args.reason);
+                    // Always clean the phone: strip @c.us if AI passes it, use patientPhone as fallback
+                    const bookingPhone = (args.patient_phone || patientPhone).split('@')[0];
+                    const booking = await bookAppointment(config.user_id, args.start_date_time, bookingPhone, args.patient_name, args.reason, clinicTimezone);
                     tempMessages.push({ role: "tool", tool_call_id: toolCall.id, content: JSON.stringify(booking) });
                 }
                 else if (toolCall.function.name === 'search_properties') {
