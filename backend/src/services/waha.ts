@@ -94,12 +94,21 @@ export async function sendBulkText(chatIds: string[], text: string, sessionName?
 export async function downloadMedia(sessionName: string, mediaUrl: string, extension: string = 'ogg'): Promise<{ buffer: Buffer | null, filepath?: string }> {
     try {
         let downloadUrl = mediaUrl;
-        
+
+        // WAHA (Docker) returns media URLs as http://localhost:3000/api/files/...
+        // Replace localhost with the real external WAHA URL (same approach as the n8n workflow)
+        if (downloadUrl.includes('localhost') || downloadUrl.includes('127.0.0.1')) {
+            const pathStart = downloadUrl.indexOf('/api/');
+            if (pathStart !== -1) {
+                downloadUrl = `${WAHA_API_URL}${downloadUrl.substring(pathStart)}`;
+            }
+        }
+
         // Force HTTPS
         if (downloadUrl.startsWith('http://')) {
             downloadUrl = downloadUrl.replace('http://', 'https://');
         }
-        
+
         // If it's a relative path, prepend the WAHA base URL
         if (downloadUrl.startsWith('/')) {
             downloadUrl = `${WAHA_API_URL}${downloadUrl}`;

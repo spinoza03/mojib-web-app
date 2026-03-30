@@ -33,6 +33,12 @@ interface WAMessage {
     type: string;
     _data?: {
         type?: string;
+        key?: {
+            remoteJid?: string;
+            remoteJidAlt?: string;
+            fromMe?: boolean;
+            id?: string;
+        };
         [key: string]: any;
     };
     media?: {
@@ -63,8 +69,23 @@ export const wahaWebhookHandler = async (req: Request, res: Response): Promise<v
             return;
         }
 
-        // Use payload.from directly from the WAHA webhook body
-        const phone_number = payload.payload.from;
+        // Extract the real phone number from the WAHA webhook.
+        // WAHA (NOWEB engine) sometimes sends `from` as a WhatsApp LID (e.g. "224502302662716@lid")
+        // instead of the real phone number ("212608301414@c.us").
+        // The real phone can be in either remoteJid or remoteJidAlt — pick whichever has @s.whatsapp.net
+        let phone_number = payload.payload.from as string;
+        if (phone_number && phone_number.endsWith('@lid')) {
+            const remoteJid = message._data?.key?.remoteJid as string | undefined;
+            const remoteJidAlt = message._data?.key?.remoteJidAlt as string | undefined;
+            // The real phone ends with @s.whatsapp.net, pick it from whichever field has it
+            const realJid = (remoteJid && remoteJid.endsWith('@s.whatsapp.net')) ? remoteJid
+                          : (remoteJidAlt && remoteJidAlt.endsWith('@s.whatsapp.net')) ? remoteJidAlt
+                          : null;
+            if (realJid) {
+                phone_number = realJid.replace('@s.whatsapp.net', '@c.us');
+            }
+            console.log(`[LID Fix] from=${payload.payload.from} → resolved to ${phone_number}`);
+        }
         
         // 1. Fetch DB settings
         let isDoctorBot = false;
