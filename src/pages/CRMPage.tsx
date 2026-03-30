@@ -495,12 +495,12 @@ export default function CRMPage() {
 
 					{/* Patients List (Left Column) */}
 					<Card className="lg:col-span-1 glass-card h-[60vh] lg:h-[calc(100vh-200px)] flex flex-col">
-						<CardHeader className="pb-3 border-b border-white/5 space-y-4">
+						<CardHeader className="pb-3 border-b border-border space-y-4">
 							<div className="relative">
 								<Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
 								<Input
 									placeholder="Rechercher par nom..."
-									className="pl-9 bg-secondary/30"
+									className="pl-9 bg-muted/50"
 									value={searchTerm}
 									onChange={e => setSearchTerm(e.target.value)}
 								/>
@@ -512,7 +512,7 @@ export default function CRMPage() {
 							) : filteredPatients.length === 0 ? (
 								<div className="p-8 text-center text-muted-foreground text-sm">Aucun patient trouvé.</div>
 							) : (
-								<div className="divide-y divide-white/5">
+								<div className="divide-y divide-border">
 									{filteredPatients.map(patient => (
 										<button
 											key={patient.id}
@@ -535,7 +535,7 @@ export default function CRMPage() {
 					<Card className="lg:col-span-2 glass-card h-[60vh] lg:h-[calc(100vh-200px)] flex flex-col">
 						{selectedPatient ? (
 							<>
-								<CardHeader className="pb-0 border-b border-white/5 bg-secondary/10">
+								<CardHeader className="pb-0 border-b border-border bg-muted/30">
 									<Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
 										<div className="flex justify-between items-start mb-6">
 											<div>
@@ -553,9 +553,9 @@ export default function CRMPage() {
 												</div>
 												{Number(selectedPatient.total_agreed_price) > 0 && (
 													<div className="flex flex-wrap gap-3 mt-2 text-xs font-medium">
-														<span className="bg-secondary/40 px-2 py-1 rounded">Total: {Number(selectedPatient.total_agreed_price).toFixed(2)} DH</span>
-														<span className="bg-green-500/10 text-green-400 px-2 py-1 rounded">Payé: {totalPaid.toFixed(2)} DH</span>
-														<span className={`px-2 py-1 rounded ${remaining > 0 ? 'bg-amber-500/10 text-amber-400' : 'bg-green-500/10 text-green-400'}`}>
+														<span className="bg-muted px-2 py-1 rounded">Total: {Number(selectedPatient.total_agreed_price).toFixed(2)} DH</span>
+														<span className="bg-green-100 dark:bg-green-500/10 text-green-700 dark:text-green-400 px-2 py-1 rounded">Payé: {totalPaid.toFixed(2)} DH</span>
+														<span className={`px-2 py-1 rounded ${remaining > 0 ? 'bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400' : 'bg-green-100 dark:bg-green-500/10 text-green-700 dark:text-green-400'}`}>
 															Reste: {remaining.toFixed(2)} DH
 														</span>
 													</div>
@@ -630,10 +630,10 @@ export default function CRMPage() {
 																<Input value={newPayment.notes} onChange={e => setNewPayment({...newPayment, notes: e.target.value})} placeholder="ex: 1ère séance, espèces..." />
 															</div>
 															{Number(selectedPatient?.total_agreed_price) > 0 && (
-																<div className="bg-secondary/30 p-3 rounded-lg text-sm space-y-1">
+																<div className="bg-muted p-3 rounded-lg text-sm space-y-1">
 																	<div className="flex justify-between"><span className="text-muted-foreground">Total convenu</span><span>{Number(selectedPatient.total_agreed_price).toFixed(2)} DH</span></div>
-																	<div className="flex justify-between"><span className="text-muted-foreground">Déjà payé</span><span className="text-green-400">{totalPaid.toFixed(2)} DH</span></div>
-																	<div className="flex justify-between font-medium"><span className="text-muted-foreground">Reste</span><span className="text-amber-400">{remaining.toFixed(2)} DH</span></div>
+																	<div className="flex justify-between"><span className="text-muted-foreground">Déjà payé</span><span className="text-green-600 dark:text-green-400">{totalPaid.toFixed(2)} DH</span></div>
+																	<div className="flex justify-between font-medium"><span className="text-muted-foreground">Reste</span><span className="text-amber-600 dark:text-amber-400">{remaining.toFixed(2)} DH</span></div>
 																</div>
 															)}
 															<Button type="submit" className="w-full" disabled={savingPayment}>
@@ -645,19 +645,19 @@ export default function CRMPage() {
 											)}
 										</div>
 										<TabsList className="bg-transparent border-none">
-											<TabsTrigger value="history" className="data-[state=active]:bg-secondary/40 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none shadow-none bg-transparent">
+											<TabsTrigger value="history" className="data-[state=active]:bg-muted data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none shadow-none bg-transparent">
 												Historique (Soins)
 											</TabsTrigger>
-											<TabsTrigger value="payments" className="data-[state=active]:bg-secondary/40 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none shadow-none bg-transparent">
-												Versements <Badge className="ml-2 bg-secondary/50">{payments.length}</Badge>
+											<TabsTrigger value="payments" className="data-[state=active]:bg-muted data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none shadow-none bg-transparent">
+												Versements <Badge className="ml-2 bg-muted text-muted-foreground">{payments.length}</Badge>
 											</TabsTrigger>
-											<TabsTrigger value="files" className="data-[state=active]:bg-secondary/40 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none shadow-none bg-transparent">
-												Fichiers <Badge className="ml-2 bg-secondary/50">{patientFiles.length}</Badge>
+											<TabsTrigger value="files" className="data-[state=active]:bg-muted data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none shadow-none bg-transparent">
+												Fichiers <Badge className="ml-2 bg-muted text-muted-foreground">{patientFiles.length}</Badge>
 											</TabsTrigger>
 										</TabsList>
 									</Tabs>
 								</CardHeader>
-								<CardContent className="p-0 overflow-y-auto flex-1 bg-black/20">
+								<CardContent className="p-0 overflow-y-auto flex-1 bg-muted/30">
 									<Tabs value={activeTab} className="h-full">
 										{/* History Tab */}
 										<TabsContent value="history" className="h-full m-0">
@@ -665,9 +665,9 @@ export default function CRMPage() {
 												<div className="p-12 flex justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
 											) : treatments.length === 0 ? (
 												<div className="p-12 text-center flex flex-col items-center">
-													<FileText className="h-16 w-16 text-white/5 mb-4" />
-													<h3 className="text-lg font-medium text-white/40">Dossier Vierge</h3>
-													<p className="text-sm text-white/30 mt-1">Ce patient n'a pas encore de soins enregistrés.</p>
+													<FileText className="h-16 w-16 text-muted-foreground/20 mb-4" />
+													<h3 className="text-lg font-medium text-muted-foreground">Dossier Vierge</h3>
+													<p className="text-sm text-muted-foreground/70 mt-1">Ce patient n'a pas encore de soins enregistrés.</p>
 												</div>
 											) : (
 												<div className="p-6 space-y-6">
@@ -680,14 +680,14 @@ export default function CRMPage() {
 																{/* Timeline Dot */}
 																<div className="absolute -left-[9px] top-1 h-4 w-4 rounded-full bg-background border-2 border-primary"></div>
 
-																<div className="bg-secondary/30 p-5 rounded-xl border border-white/5 hover:border-primary/20 transition-colors">
+																<div className="bg-card p-5 rounded-xl border border-border shadow-sm hover:border-primary/30 transition-colors">
 																	<div className="flex justify-between items-start mb-2">
 																		<div>
 																			<h4 className="font-bold text-lg text-foreground flex items-center gap-2">
 																				{treatment.treatment_name}
-																				{idx === 0 && <Badge className="bg-blue-500/20 text-blue-400 py-0 border-none">Dernier Soin</Badge>}
+																				{idx === 0 && <Badge className="bg-blue-500/10 text-blue-600 dark:text-blue-400 py-0 border-blue-500/20">Dernier Soin</Badge>}
 																			</h4>
-																			<p className="text-xs font-medium text-primary/80 uppercase tracking-widest mt-1">
+																			<p className="text-xs font-medium text-primary uppercase tracking-widest mt-1">
 																				{moment(treatment.date).format('LL')} • {moment(treatment.date).fromNow()}
 																			</p>
 																		</div>
@@ -703,14 +703,14 @@ export default function CRMPage() {
 
 																	<div className="grid grid-cols-2 gap-4 mt-4">
 																		{treatment.quantity && (
-																			<div className="bg-black/20 p-2 rounded text-sm">
+																			<div className="bg-muted p-2 rounded text-sm">
 																				<span className="text-muted-foreground block text-xs">Quantité</span>
-																				<span className="font-medium text-white">{treatment.quantity}</span>
+																				<span className="font-medium text-foreground">{treatment.quantity}</span>
 																			</div>
 																		)}
 																		{treatment.notes && (
-																			<div className="bg-amber-500/5 p-2 rounded text-sm lg:col-span-2 border border-amber-500/10">
-																				<span className="text-amber-500/70 block text-xs font-medium flex items-center gap-1"><Activity className="h-3 w-3"/> Sécurité & Notes</span>
+																			<div className="bg-amber-50 dark:bg-amber-500/10 p-2 rounded text-sm lg:col-span-2 border border-amber-200 dark:border-amber-500/20">
+																				<span className="text-amber-600 dark:text-amber-400 block text-xs font-medium flex items-center gap-1"><Activity className="h-3 w-3"/> Sécurité & Notes</span>
 																				<span className="text-foreground">{treatment.notes}</span>
 																			</div>
 																		)}
@@ -718,9 +718,9 @@ export default function CRMPage() {
 
 																	{/* Modification audit trail */}
 																	{lastMod && (
-																		<div className="mt-3 pt-3 border-t border-white/5 text-xs text-muted-foreground">
+																		<div className="mt-3 pt-3 border-t border-border text-xs text-muted-foreground">
 																			<span>Modifié par <span className="text-foreground font-medium">{lastMod.modified_by_name}</span> ({lastMod.modified_by_role === 'doctor' ? 'Docteur' : 'Assistante'}) le {moment(lastMod.modification_date).format('LL')}</span>
-																			{mods.length > 1 && <span className="ml-2 text-primary/60">({mods.length} modifications)</span>}
+																			{mods.length > 1 && <span className="ml-2 text-primary">({mods.length} modifications)</span>}
 																		</div>
 																	)}
 																</div>
@@ -737,26 +737,26 @@ export default function CRMPage() {
 												<div className="p-12 flex justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
 											) : payments.length === 0 ? (
 												<div className="p-12 text-center flex flex-col items-center">
-													<Banknote className="h-16 w-16 text-white/5 mb-4" />
-													<h3 className="text-lg font-medium text-white/40">Aucun Versement</h3>
-													<p className="text-sm text-white/30 mt-1">Ajoutez un versement pour suivre les paiements du patient.</p>
+													<Banknote className="h-16 w-16 text-muted-foreground/20 mb-4" />
+													<h3 className="text-lg font-medium text-muted-foreground">Aucun Versement</h3>
+													<p className="text-sm text-muted-foreground/70 mt-1">Ajoutez un versement pour suivre les paiements du patient.</p>
 												</div>
 											) : (
 												<div className="p-6 space-y-4">
 													{/* Payment Summary Card */}
 													{Number(selectedPatient?.total_agreed_price) > 0 && (
-														<div className="bg-secondary/30 p-4 rounded-xl border border-white/5 grid grid-cols-3 gap-4 text-center">
+														<div className="bg-card p-4 rounded-xl border border-border shadow-sm grid grid-cols-3 gap-4 text-center">
 															<div>
 																<p className="text-xs text-muted-foreground">Total Convenu</p>
 																<p className="text-lg font-bold">{Number(selectedPatient.total_agreed_price).toFixed(2)} DH</p>
 															</div>
 															<div>
 																<p className="text-xs text-muted-foreground">Payé</p>
-																<p className="text-lg font-bold text-green-400">{totalPaid.toFixed(2)} DH</p>
+																<p className="text-lg font-bold text-green-600 dark:text-green-400">{totalPaid.toFixed(2)} DH</p>
 															</div>
 															<div>
 																<p className="text-xs text-muted-foreground">Reste</p>
-																<p className={`text-lg font-bold ${remaining > 0 ? 'text-amber-400' : 'text-green-400'}`}>{remaining.toFixed(2)} DH</p>
+																<p className={`text-lg font-bold ${remaining > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-green-600 dark:text-green-400'}`}>{remaining.toFixed(2)} DH</p>
 															</div>
 														</div>
 													)}
@@ -764,9 +764,9 @@ export default function CRMPage() {
 													{/* Payment List */}
 													<div className="space-y-3">
 														{payments.map((payment) => (
-															<div key={payment.id} className="bg-secondary/30 p-4 rounded-xl border border-white/5 flex items-center justify-between">
+															<div key={payment.id} className="bg-card p-4 rounded-xl border border-border shadow-sm flex items-center justify-between">
 																<div>
-																	<p className="font-semibold text-lg text-green-400">+{Number(payment.amount).toFixed(2)} DH</p>
+																	<p className="font-semibold text-lg text-green-600 dark:text-green-400">+{Number(payment.amount).toFixed(2)} DH</p>
 																	<p className="text-xs text-muted-foreground mt-1">{moment(payment.payment_date).format('LL')} • {moment(payment.payment_date).fromNow()}</p>
 																	{payment.notes && <p className="text-sm text-foreground/70 mt-1">{payment.notes}</p>}
 																</div>
@@ -786,9 +786,9 @@ export default function CRMPage() {
 												<div className="p-12 flex justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
 											) : patientFiles.length === 0 ? (
 												<div className="p-12 text-center flex flex-col items-center">
-													<ImageIcon className="h-16 w-16 text-white/5 mb-4" />
-													<h3 className="text-lg font-medium text-white/40">Aucun Fichier</h3>
-													<p className="text-sm text-white/30 mt-1">Téléchargez des photos avant/après, des scans ou des ordonnances.</p>
+													<ImageIcon className="h-16 w-16 text-muted-foreground/20 mb-4" />
+													<h3 className="text-lg font-medium text-muted-foreground">Aucun Fichier</h3>
+													<p className="text-sm text-muted-foreground/70 mt-1">Téléchargez des photos avant/après, des scans ou des ordonnances.</p>
 												</div>
 											) : (
 												<div className="p-6 grid grid-cols-2 sm:grid-cols-3 gap-4">
@@ -800,18 +800,18 @@ export default function CRMPage() {
 																href={file.file_url}
 																target="_blank"
 																rel="noopener noreferrer"
-																className="group relative bg-secondary/30 rounded-xl border border-white/5 overflow-hidden hover:border-primary/50 transition-colors aspect-square flex flex-col"
+																className="group relative bg-card rounded-xl border border-border overflow-hidden hover:border-primary/50 transition-colors aspect-square flex flex-col"
 															>
 																{isImage ? (
-																	<div className="flex-1 overflow-hidden bg-black/40">
+																	<div className="flex-1 overflow-hidden bg-muted">
 																		<img src={file.file_url} alt={file.file_name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
 																	</div>
 																) : (
-																	<div className="flex-1 flex items-center justify-center bg-black/40">
+																	<div className="flex-1 flex items-center justify-center bg-muted">
 																		<FileIcon className="h-12 w-12 text-muted-foreground group-hover:text-primary transition-colors" />
 																	</div>
 																)}
-																<div className="p-3 bg-secondary/80 backdrop-blur-md shrink-0">
+																<div className="p-3 bg-muted/80 backdrop-blur-md shrink-0">
 																	<p className="text-xs font-medium text-foreground truncate" title={file.file_name}>{file.file_name}</p>
 																	<p className="text-[10px] text-muted-foreground mt-0.5">{moment(file.created_at).format('ll')}</p>
 																</div>
@@ -827,7 +827,7 @@ export default function CRMPage() {
 						) : (
 							<div className="flex-1 flex items-center justify-center text-center p-8">
 								<div className="space-y-4 max-w-sm">
-									<div className="h-24 w-24 bg-secondary/30 rounded-full flex items-center justify-center mx-auto ring-8 ring-secondary/10">
+									<div className="h-24 w-24 bg-muted rounded-full flex items-center justify-center mx-auto ring-8 ring-muted/50">
 										<TrendingUp className="h-10 w-10 text-primary/50" />
 									</div>
 									<h2 className="text-2xl font-bold">Le "Life File"</h2>
@@ -908,7 +908,7 @@ export default function CRMPage() {
 								<Label>Notes</Label>
 								<Input value={editTreatment.notes} onChange={e => setEditTreatment({...editTreatment, notes: e.target.value})} />
 							</div>
-							<div className="border-t border-white/10 pt-4 space-y-3">
+							<div className="border-t border-border pt-4 space-y-3">
 								<p className="text-sm font-medium text-muted-foreground">Qui a fait cette modification ?</p>
 								<div className="grid grid-cols-2 gap-4">
 									<div className="space-y-2">
